@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Manage Roster</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 1rem;
+    }
+
+    h1, h2 {
+      font-size: 1.3rem;
+    }
+
+    form {
+      margin-bottom: 2rem;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 8px;
+      font-size: 1rem;
+      margin-top: 4px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    input[type="submit"],
+    button {
+      margin-top: 12px;
+      padding: 10px 16px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover,
+    input[type="submit"]:hover {
+      background-color: #0056b3;
+    }
+
+    ul {
+      padding-left: 0;
+      list-style-type: none;
+    }
+
+    li {
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
+
+    form.inline {
+      display: inline;
+    }
+
+    nav a {
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <nav style="margin-bottom: 20px;">
+    <a href="{{ url_for('home') }}">🏠 Main Page</a>
+  </nav>
+  <hr>
+
+  <h1>Roster Management</h1>
+
+  <h2>Add Athlete</h2>
+  <form method="post" action="/manage_roster">
+    <input type="hidden" name="action" value="add">
+    
+    <label for="first_name">First Name:</label>
+    <input type="text" name="first_name" required>
+
+    <label for="last_name">Last Name:</label>
+    <input type="text" name="last_name" required>
+
+    <label for="grade">Grade:</label>
+    <input type="number" name="grade" id="grade" min="7" max="12" required>
+
+    <label for="gender">Gender:</label>
+    <select name="gender" id="gender" required>
+      <option value="">--Select--</option>
+      <option value="Male">Male</option>
+      <option value="Female">Female</option>
+      <option value="Other">Other</option>
+    </select>
+
+    <label for="team_id">Team:</label>
+    <select name="team_id">
+      {% for team in teams %}
+        <option value="{{ team[0] }}">{{ team[1] }}</option>
+      {% endfor %}
+    </select>
+
+    <input type="submit" value="Add Athlete">
+  </form>
+
+  <h2>Current Athletes</h2>
+  <ul>
+    {% for athlete in athletes %}
+      <li>
+        {{ athlete[1] }} {{ athlete[2] }}
+        <form method="post" action="/manage_roster" class="inline">
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="athlete_id" value="{{ athlete[0] }}">
+          <button type="submit">Remove</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <p><a href="/">Back to Main Page</a></p>
+</body>
+</html>

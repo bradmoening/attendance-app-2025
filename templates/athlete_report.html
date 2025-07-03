@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Athlete Absence Report</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 1rem;
+    }
+
+    h1, h2 {
+      font-size: 1.5rem;
+    }
+
+    label {
+      font-size: 1.1rem;
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+
+    select {
+      font-size: 1.1rem;
+      padding: 0.5rem;
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 1rem;
+    }
+
+    ul {
+      padding-left: 1rem;
+    }
+
+    li {
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+    }
+
+    nav a {
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <nav style="margin-bottom: 20px;">
+    <a href="{{ url_for('home') }}">🏠 Main Page</a>
+  </nav>
+
+  <hr>
+
+  <h1>Individual Athlete Absence Report</h1>
+
+  <form method="post">
+    <label for="athlete_id">Select Athlete:</label>
+    <select name="athlete_id" id="athlete_id" onchange="this.form.submit()">
+      <option value="">-- Choose an athlete --</option>
+      {% for athlete in athletes %}
+        <option value="{{ athlete[0] }}" {% if athlete[0] == selected_id %}selected{% endif %}>
+          {{ athlete[1] }} {{ athlete[2] }}
+        </option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% if absences %}
+    <h2>Absences:</h2>
+    <ul>
+      {% for date, note in absences %}
+        <li>
+          {{ date }}
+          {% if note %}
+            – <em>Note: {{ note }}</em>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% elif selected_id %}
+    <p>No absences recorded for this athlete.</p>
+  {% endif %}
+
+</body>
+</html>

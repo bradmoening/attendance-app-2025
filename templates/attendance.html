@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Attendance</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+.button-note-wrapper {
+  margin: 0;
+}
+form {
+  margin: 0;
+}
+
+
+    body {
+      font-family: sans-serif;
+      margin: 1rem;
+      background-color: #eef2f5;
+    }
+
+    ul {
+  padding: 0;
+  margin: 0;
+}
+
+li {
+  margin: 0;
+  padding: 0;
+}
+
+
+    nav {
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    p.legend {
+      margin-bottom: 20px;
+    }
+
+    form {
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-weight: bold;
+    }
+
+    select, input[type="text"] {
+      width: 100%;
+      max-width: 300px;
+      padding: 8px;
+      font-size: 16px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      margin-top: 6px;
+      margin-bottom: 12px;
+    }
+
+    .athlete-row {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 10px;
+    }
+
+    .button-note-wrapper {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-btn {
+      flex-shrink: 0;
+      width: 250px;
+      height: 48px;
+      padding: 0 12px;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .present {
+      background-color: #2ecc71;
+      color: white;
+    }
+
+    .absent {
+      background-color: #e74c3c;
+      color: white;
+    }
+
+    input[type="text"].note-field {
+      flex: 1;
+      min-width: 100px;
+      max-width: 150px;
+      padding: 6px;
+      font-size: 14px;
+    }
+
+    @media (min-width: 600px) {
+      .athlete-row {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .status-btn {
+        width: 250px;
+      }
+
+      input[type="text"].note-field {
+        max-width: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="{{ url_for('home') }}">🏠 Main Page</a>
+  </nav>
+
+  <hr>
+
+  <h1>Practice Attendance – {{ date }}</h1>
+  <p class="legend"><strong>Legend:</strong> <span style="color:green;">P = Present</span>, <span style="color:red;">A = Absent</span></p>
+
+  <!-- Team Selection Dropdown -->
+  <form method="get" action="{{ url_for('attendance') }}">
+    <label for="team_id">Select Team:</label>
+    <select name="team_id" id="team_id" onchange="this.form.submit()">
+      <option value="">-- Show All Teams --</option>
+      {% for team in teams %}
+        <option value="{{ team[0] }}" {% if team[0] == selected_team_id %}selected{% endif %}>
+          {{ team[1] }}
+        </option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <ul style="list-style-type: none; padding-left: 0;">
+    {% for athlete in athletes %}
+      <li class="athlete-row">
+        <form method="post" class="button-note-wrapper">
+          <input type="hidden" name="athlete_id" value="{{ athlete[0] }}">
+          <button type="submit"
+                  class="status-btn {% if attendance.get(athlete[0]) == 'Absent' %}absent{% else %}present{% endif %}">
+            {{ athlete[1] }} {{ athlete[2][0] }}: {% if attendance.get(athlete[0]) == 'Absent' %}A{% else %}P{% endif %}
+          </button>
+          <input type="text" name="note" class="note-field"
+                 placeholder="Note" value="{{ notes.get(athlete[0], '') }}">
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+
+</body>
+</html>

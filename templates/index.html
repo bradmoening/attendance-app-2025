@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Attendance Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            padding: 0;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            background-color: #eef2f5;
+        }
+
+        h1 {
+            font-size: 1.8em;
+            text-align: center;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            margin: 12px 0;
+            padding: 14px;
+            background-color: #f0f0f0;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        li a {
+            text-decoration: none;
+            font-size: 1.1em;
+            color: #333;
+            display: block;
+        }
+
+        li a:hover {
+            color: #007BFF;
+        }
+
+        hr {
+            margin-top: 30px;
+        }
+
+        a.button-link {
+    display: inline-block;
+    background-color: #27ae60;           /* Deeper blue */
+    color: white;
+    text-decoration: none;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: bold;
+    box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.15);  /* subtle shadow */
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+  }
+
+  a.button-link:hover {
+    background-color: #2c80b4;
+  }
+
+    </style>
+</head>
+<body>
+    <h1>Highland Cross Country Attendance App</h1>
+
+    <ul>
+        <li><a href="{{ url_for('attendance') }}">Take Attendance</a></li>
+        <li><a href="{{ url_for('history') }}">View Attendance History</a></li>
+        <li><a href="{{ url_for('athlete_report') }}">Athlete Absence Report</a></li>
+        <li><a href="{{ url_for('flagged_athletes') }}">Flagged Athletes</a></li>
+        <li><a href="{{ url_for('manage_roster') }}">Manage Roster</a></li>
+        <li><a href="{{ url_for('manage_absences') }}">Manage Absences</a></li>
+        <li><a href="{{ url_for('add_coach') }}">Add Coach</a></li>
+        <li><a href="{{ url_for('reset_password') }}">Reset Coach Password</a></li>
+        <li><a href="{{ url_for('logout') }}">Logout</a></li>
+    </ul>
+
+    <hr>
+</body>
+</html>

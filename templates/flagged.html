@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Flagged Athletes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 1rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+    }
+
+    nav a {
+      font-size: 1rem;
+    }
+
+    ul {
+      padding-left: 1rem;
+    }
+
+    li {
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+
+    a {
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <nav style="margin-bottom: 20px;">
+    <a href="{{ url_for('home') }}">🏠 Main Page</a>
+  </nav>
+  <hr>
+
+  <h1>Flagged Athletes (5+ Absences)</h1>
+
+  {% if flagged %}
+    <ul>
+      {% for athlete_id, first_name, last_name, count in flagged %}
+        <li>
+          <strong>{{ first_name }} {{ last_name }}</strong>: {{ count }} absences —
+          <a href="{{ url_for('athlete_report') }}?athlete_id={{ athlete_id }}">View Report</a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No athletes with 5 or more absences. Keep up the good attendance!</p>
+  {% endif %}
+
+</body>
+</html>

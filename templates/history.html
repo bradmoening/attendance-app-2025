@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Attendance History</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+body {
+  font-family: system-ui, sans-serif;
+  margin: 1rem;
+}
+
+select {
+  font-size: 1.1rem;
+  padding: 10px;
+  width: 100%;
+  max-width: 300px;
+  border-radius: 5px;
+}
+
+
+
+    .present {
+      background-color: #d4edda; /* light green */
+      color: #155724;
+      padding: 5px;
+      margin: 4px 0;
+      border-radius: 5px;
+    }
+    .absent {
+      background-color: #f8d7da; /* light red */
+      color: #721c24;
+      padding: 5px;
+      margin: 4px 0;
+      border-radius: 5px;
+    }
+
+    ul {
+  padding: 0;
+  list-style: none;
+}
+
+li.present,
+li.absent {
+  font-size: 1rem;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+label {
+  font-size: 1.1rem;
+  margin-top: 10px;
+}
+
+
+  </style>
+</head>
+<body>
+    <nav style="margin-bottom: 20px;">
+        <a href="{{ url_for('home') }}">🏠 Main Page</a>
+      </nav>
+      
+      <hr>
+      
+<h1>Attendance History</h1>
+
+<!-- Single form for date and team -->
+<form method="post">
+  <label for="selected_date">Select Date:</label>
+  <select name="selected_date" onchange="this.form.submit()">
+    {% for date in dates %}
+      <option value="{{ date }}" {% if date == selected_date %}selected{% endif %}>{{ date }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="team_id">Select Team:</label>
+  <select name="team_id" onchange="this.form.submit()">
+    <option value="">-- All Teams --</option>
+    {% for team in teams %}
+      <option value="{{ team[0] }}" {% if team[0] == selected_team_id %}selected{% endif %}>{{ team[1] }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<h2>Attendance for {{ selected_date }}</h2>
+
+<ul>
+  {% for athlete in history_data %}
+    <li class="{{ 'present' if athlete[2] == 'Present' else 'absent' }}">
+      {{ athlete[0] }} {{ athlete[1] }} – {{ athlete[2] }}
+      {% if athlete[3] %}
+        <em>(Note: {{ athlete[3] }})</em>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>
+
+</body>
+</html>

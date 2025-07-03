@@ -1,0 +1,26 @@
+@media (max-width: 600px) {
+    input[type="text"] {
+      width: 100%;
+      margin-top: 5px;
+    }
+  
+    form {
+      display: block;
+      margin-top: 10px;
+    }
+  
+    ul {
+      padding-left: 0;
+    }
+  
+    li {
+      margin-bottom: 20px;
+      list-style-type: none;
+    }
+  
+    .present-btn, .absent-btn {
+      width: 100%;
+      margin-top: 5px;
+    }
+  }
+  

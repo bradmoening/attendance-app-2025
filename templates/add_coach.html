@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Add New Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      font-size: 1rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 12px;
+      font-size: 1rem;
+      width: 100%;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    p a {
+      display: inline-block;
+      margin-top: 20px;
+      font-size: 1rem;
+    }
+
+    nav a {
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <nav style="margin-bottom: 20px;">
+    <a href="{{ url_for('home') }}">🏠 Main Page</a>
+  </nav>
+
+  <h1>Add New Coach</h1>
+
+  {% if message %}
+    <p><strong>{{ message }}</strong></p>
+  {% endif %}
+
+  <form method="post">
+    <label for="name">Full Name:</label>
+    <input type="text" name="name" required>
+
+    <label for="username">Username:</label>
+    <input type="text" name="username" required>
+
+    <label for="password">Password:</label>
+    <input type="password" name="password" required>
+
+    <label for="team_id">Team (optional):</label>
+    <select name="team_id">
+      <option value="">-- No Team --</option>
+      {% for team in teams %}
+        <option value="{{ team[0] }}">{{ team[1] }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit">Add Coach</button>
+  </form>
+
+  <p><a href="{{ url_for('home') }}">Back to Home</a></p>
+
+</body>
+</html>
