@@ -51,6 +51,11 @@ li {
       font-weight: bold;
     }
 
+    html {
+  scroll-behavior: smooth;
+}
+
+
     select, input[type="text"] {
       width: 100%;
       max-width: 300px;
@@ -133,8 +138,8 @@ li {
 
   <hr>
 
-  <h1>Practice Attendance – {{ date }}</h1>
-  <p class="legend"><strong>Legend:</strong> <span style="color:green;">P = Present</span>, <span style="color:red;">A = Absent</span></p>
+  <h2>Attendance {{ date }}</h2>
+  <!--<p class="legend"><strong>Legend:</strong> <span style="color:green;">P = Present</span>, <span style="color:red;">A = Absent</span></p>-->
 
   <!-- Team Selection Dropdown -->
   <form method="get" action="{{ url_for('attendance') }}">
@@ -151,8 +156,8 @@ li {
 
   <ul style="list-style-type: none; padding-left: 0;">
     {% for athlete in athletes %}
-      <li class="athlete-row">
-        <form method="post" class="button-note-wrapper">
+      <div class="athlete-row">
+        <form method="post" class="button-note-wrapper" action="#athlete-{{ athlete[0] }}">
           <input type="hidden" name="athlete_id" value="{{ athlete[0] }}">
           <button type="submit"
                   class="status-btn {% if attendance.get(athlete[0]) == 'Absent' %}absent{% else %}present{% endif %}">
@@ -161,7 +166,7 @@ li {
           <input type="text" name="note" class="note-field"
                  placeholder="Note" value="{{ notes.get(athlete[0], '') }}">
         </form>
-      </li>
+      </div>
     {% endfor %}
   </ul>
 
