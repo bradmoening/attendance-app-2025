@@ -12,7 +12,8 @@
             max-width: 600px;
             margin-left: auto;
             margin-right: auto;
-            background-color: #1e3d2f; /* Dark green background */
+            background-color: #fafafa;
+            color: #222;
         }
 
         h1 {
@@ -50,8 +51,8 @@
 
         a.button {
   display: block;
-  background-color: #a8d5ba; /* Light green button */
-  color: #003322;
+  background-color: #c62828;
+  color: white;
   text-decoration: none;
   font-size: 1.2rem;
   font-weight: bold;
@@ -60,12 +61,12 @@
   border-radius: 8px;
   width: 90%;
   max-width: 400px;
-  box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.15);
   transition: background-color 0.2s ease;
 }
 
 a.button:hover {
-  background-color: #8ccca6; /* Slightly darker on hover */
+  background-color: #b71c1c;
 }
 
     </style>
@@ -74,15 +75,16 @@ a.button:hover {
     <h1>HP XC Attendance</h1>
 
     <ul>
-        <li><a href="{{ url_for('attendance') }}">Take Attendance</a></li>
-        <li><a href="{{ url_for('history') }}">View Attendance History</a></li>
-        <li><a href="{{ url_for('athlete_report') }}">Athlete Absence Report</a></li>
-        <li><a href="{{ url_for('flagged_athletes') }}">Flagged Athletes</a></li>
-        <li><a href="{{ url_for('manage_roster') }}">Manage Roster</a></li>
-        <li><a href="{{ url_for('manage_absences') }}">Manage Absences</a></li>
-        <li><a href="{{ url_for('add_coach') }}">Add Coach</a></li>
-        <li><a href="{{ url_for('reset_password') }}">Reset Coach Password</a></li>
-        <li><a href="{{ url_for('logout') }}">Logout</a></li>
+        <li><a class="button" href="{{ url_for('attendance') }}">Take Attendance</a></li>
+<li><a class="button" href="{{ url_for('history') }}">View Attendance History</a></li>
+<li><a class="button" href="{{ url_for('athlete_report') }}">Athlete Absence Report</a></li>
+<li><a class="button" href="{{ url_for('flagged_athletes') }}">Flagged Athletes</a></li>
+<li><a class="button" href="{{ url_for('manage_roster') }}">Manage Roster</a></li>
+<li><a class="button" href="{{ url_for('manage_absences') }}">Manage Absences</a></li>
+<li><a class="button" href="{{ url_for('add_coach') }}">Add Coach</a></li>
+<li><a class="button" href="{{ url_for('reset_password') }}">Reset Coach Password</a></li>
+<li><a class="button" href="{{ url_for('logout') }}">Logout</a></li>
+
     </ul>
 
     <hr>
