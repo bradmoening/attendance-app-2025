@@ -431,7 +431,6 @@ def manage_absences():
     return render_template("manage_absences.html", athletes=athletes, selected_id=int(selected_id) if selected_id else None, absences=absences)
 
 
-new_athlete = Athlete(first_name=first_name, last_name=last_name, team_id=int(team_id))
 
 
 @app.route('/import_csv', methods=['GET', 'POST'])
