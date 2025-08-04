@@ -56,11 +56,9 @@ def load_user(user_id):
 # Home route
 @app.route("/")
 def home():
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("SELECT first_name, last_name FROM athletes ORDER BY last_name")
-    athletes = cursor.fetchall()
+    athletes = Athlete.query.order_by(Athlete.last_name).all()
     return render_template("index.html", athletes=athletes)
+
 
 # Login route
 @app.route("/login", methods=["GET", "POST"])
