@@ -5,6 +5,9 @@ import os
 from flask import Flask, render_template, g, request, redirect, url_for
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from werkzeug.security import check_password_hash
+from flask import request, redirect, url_for, flash
+import csv
+from io import TextIOWrapper
 
 app = Flask(__name__)
 app.secret_key = 'boomer'  # Needed for session management
@@ -15,6 +18,13 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Create a SQLAlchemy instance
 db = SQLAlchemy(app)
+
+class Athlete(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    team_id = db.Column(db.Integer, nullable=False)
+
 
 
 DATABASE = 'attendance.db'
@@ -419,6 +429,34 @@ def manage_absences():
         absences = cursor.fetchall()
 
     return render_template("manage_absences.html", athletes=athletes, selected_id=int(selected_id) if selected_id else None, absences=absences)
+
+
+new_athlete = Athlete(first_name=first_name, last_name=last_name, team_id=int(team_id))
+
+
+@app.route('/import_csv', methods=['GET', 'POST'])
+def import_csv():
+    
+    if request.method == 'POST':
+        file = request.files['file']
+        if file and file.filename.endswith('.csv'):
+            stream = TextIOWrapper(file.stream)
+            csv_input = csv.reader(stream)
+            next(csv_input)  # Skip header
+
+            for row in csv_input:
+                first_name, last_name, team_id = row
+                new_athlete = Athlete(first_name=first_name, last_name=last_name, team_id=int(team_id))
+                db.session.add(new_athlete)
+
+            db.session.commit()
+            flash('CSV imported successfully.')
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid file type. Please upload a .csv file.')
+            return redirect(url_for('import_csv'))
+
+    return render_template('import_csv.html')
 
 
 
