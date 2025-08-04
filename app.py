@@ -435,21 +435,23 @@ def manage_absences():
 
 @app.route('/import_csv', methods=['GET', 'POST'])
 def import_csv():
-    
     if request.method == 'POST':
         file = request.files['file']
         if file and file.filename.endswith('.csv'):
-            stream = TextIOWrapper(file.stream)
-            csv_input = csv.reader(stream)
-            next(csv_input)  # Skip header
+            try:
+                stream = TextIOWrapper(file.stream)
+                csv_input = csv.reader(stream)
+                next(csv_input)  # Skip header
 
-            for row in csv_input:
-                first_name, last_name, team_id = row
-                new_athlete = Athlete(first_name=first_name, last_name=last_name, team_id=int(team_id))
-                db.session.add(new_athlete)
+                for row in csv_input:
+                    first_name, last_name, team_id = row
+                    new_athlete = Athlete(first_name=first_name, last_name=last_name, team_id=int(team_id))
+                    db.session.add(new_athlete)
 
-            db.session.commit()
-            flash('CSV imported successfully.')
+                db.session.commit()
+                flash('CSV imported successfully.')
+            except Exception as e:
+                flash(f'Error importing CSV: {e}')
             return redirect(url_for('home'))
         else:
             flash('Invalid file type. Please upload a .csv file.')
