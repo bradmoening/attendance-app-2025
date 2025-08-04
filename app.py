@@ -1,10 +1,21 @@
 import sqlite3, datetime
+from flask_sqlalchemy import SQLAlchemy
+import os
+
 from flask import Flask, render_template, g, request, redirect, url_for
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
 app.secret_key = 'boomer'  # Needed for session management
+
+# Connect to the PostgreSQL database on Render
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Create a SQLAlchemy instance
+db = SQLAlchemy(app)
+
 
 DATABASE = 'attendance.db'
 
