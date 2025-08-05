@@ -113,50 +113,56 @@ def logout():
     logout_user()
     return redirect(url_for("login"))
 
+from sqlalchemy import and_
+
 @app.route("/attendance", methods=["GET", "POST"])
 @login_required
 def attendance():
-    today = datetime.date.today().isoformat()
+    today = datetime.date.today()
 
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
         note = request.form.get("note", "")
 
         if athlete_id:
-            # Check for existing attendance record for today
-            record = Attendance.query.filter_by(athlete_id=athlete_id, date=today).first()
-            if record:
-                record.status = "Present"
-                record.notes = note
+            existing = Attendance.query.filter_by(
+                athlete_id=athlete_id, date=today
+            ).first()
+
+            if existing:
+                # Update from Absent to Present
+                existing.status = "Present"
+                existing.notes = note
             else:
-                new_record = Attendance(
+                # Add new absence
+                new_attendance = Attendance(
                     athlete_id=athlete_id,
                     date=today,
                     status="Absent",
                     notes=note
                 )
-                db.session.add(new_record)
-            db.session.commit()
+                db.session.add(new_attendance)
 
+            db.session.commit()
         return redirect(url_for('attendance', team_id=request.args.get("team_id")))
 
-    # Get all teams
-    teams = Team.query.order_by(Team.name).all()
+    # Handle GET request
+    selected_team_id = request.args.get("team_id")
 
-    team_id = request.args.get("team_id")
-    if team_id:
-        athletes = Athlete.query.filter_by(team_id=team_id).order_by(Athlete.last_name).all()
+    if selected_team_id:
+        athletes = Athlete.query.filter_by(team_id=selected_team_id).order_by(Athlete.last_name).all()
     else:
         athletes = Athlete.query.order_by(Athlete.last_name).all()
 
-    # Get attendance records for today
-    records = Attendance.query.filter_by(date=today).all()
-    attendance_data = {r.athlete_id: r.status for r in records}
-    notes_data = {r.athlete_id: r.notes for r in records}
+    attendance_records = Attendance.query.filter_by(date=today).all()
+    attendance_data = {record.athlete_id: record.status for record in attendance_records}
+    notes_data = {record.athlete_id: record.notes for record in attendance_records}
 
     present_count = sum(1 for status in attendance_data.values() if status == "Present")
     absent_count = sum(1 for status in attendance_data.values() if status == "Absent")
     unmarked_count = len(athletes) - (present_count + absent_count)
+
+    teams = Team.query.order_by(Team.name).all()
 
     return render_template(
         "attendance.html",
@@ -164,12 +170,13 @@ def attendance():
         attendance=attendance_data,
         notes=notes_data,
         teams=teams,
-        selected_team_id=int(team_id) if team_id else None,
-        date=today,
+        selected_team_id=int(selected_team_id) if selected_team_id else None,
+        date=today.isoformat(),
         present_count=present_count,
         absent_count=absent_count,
         unmarked_count=unmarked_count
     )
+
 
 
     # Handle team filtering
