@@ -1,30 +1,22 @@
-import sqlite3, datetime
+from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+from io import TextIOWrapper
+import csv
+import datetime
 import os
 
-from flask import Flask, render_template, g, request, redirect, url_for
-from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
-from werkzeug.security import check_password_hash
-from flask import request, redirect, url_for, flash
-import csv
-from io import TextIOWrapper
-
 app = Flask(__name__)
-app.secret_key = 'boomer'  # Needed for session management
+app.secret_key = 'boomer'
 
-# Connect to the PostgreSQL database on Render
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
+# Database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL", "sqlite:///test_local.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-if not os.environ.get("DATABASE_URL"):
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test_local.db'
-else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
-
-
-# Create a SQLAlchemy instance
 db = SQLAlchemy(app)
 
+# Models
 class Athlete(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(100), nullable=False)
@@ -34,10 +26,7 @@ class Athlete(db.Model):
 class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
-
     athletes = db.relationship('Athlete', backref='team', lazy=True)
-
-
 
 class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -45,483 +34,117 @@ class Attendance(db.Model):
     date = db.Column(db.String(10), nullable=False)
     status = db.Column(db.String(20), nullable=False)
     notes = db.Column(db.String(255), nullable=True)
-
     athlete = db.relationship("Athlete", backref="attendance_records")
 
+class Coach(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(100), nullable=False, unique=True)
+    password = db.Column(db.String(255), nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
 
-
-
-DATABASE = 'attendance.db'
-
-# Setup LoginManager
+# Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Coach model for authentication
-class Coach(UserMixin):
-    def __init__(self, id, name, username, password, team_id):
-        self.id = id
-        self.name = name
-        self.username = username
-        self.password = password
-        self.team_id = team_id
-
 @login_manager.user_loader
 def load_user(user_id):
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("SELECT id, name, username, password, team_id FROM coaches WHERE id = ?", (user_id,))
-    row = cursor.fetchone()
-    if row:
-        return Coach(*row)
-    return None
+    return Coach.query.get(int(user_id))
 
-# Home route
+# Routes
 @app.route("/")
 def home():
     athletes = Athlete.query.order_by(Athlete.last_name).all()
     return render_template("index.html", athletes=athletes)
 
-
-# Login route
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
-
-        db = get_db()
-        cursor = db.cursor()
-        cursor.execute("SELECT id, name, username, password, team_id FROM coaches WHERE username = ?", (username,))
-        row = cursor.fetchone()
-
-        if row and check_password_hash(row[3], password):
-            user = Coach(*row)
+        user = Coach.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
             login_user(user)
             return redirect(url_for("attendance"))
         else:
             error = "Invalid username or password"
-
     return render_template("login.html", error=error)
 
-# Logout route
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
     return redirect(url_for("login"))
 
-from sqlalchemy import and_
-
 @app.route("/attendance", methods=["GET", "POST"])
 @login_required
 def attendance():
-    today = datetime.date.today()
-
+    today = datetime.date.today().isoformat()
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
         note = request.form.get("note", "")
-
         if athlete_id:
-            existing = Attendance.query.filter_by(
-                athlete_id=athlete_id, date=today
-            ).first()
-
-            if existing:
-                # Update from Absent to Present
-                existing.status = "Present"
-                existing.notes = note
+            record = Attendance.query.filter_by(athlete_id=athlete_id, date=today).first()
+            if record:
+                record.status = "Present"
+                record.notes = note
             else:
-                # Add new absence
-                new_attendance = Attendance(
-                    athlete_id=athlete_id,
-                    date=today,
-                    status="Absent",
-                    notes=note
-                )
-                db.session.add(new_attendance)
-
+                db.session.add(Attendance(athlete_id=athlete_id, date=today, status="Absent", notes=note))
             db.session.commit()
         return redirect(url_for('attendance', team_id=request.args.get("team_id")))
 
-    # Handle GET request
     selected_team_id = request.args.get("team_id")
-
-    if selected_team_id:
-        athletes = Athlete.query.filter_by(team_id=selected_team_id).order_by(Athlete.last_name).all()
-    else:
-        athletes = Athlete.query.order_by(Athlete.last_name).all()
-
+    athletes = Athlete.query.filter_by(team_id=selected_team_id).order_by(Athlete.last_name).all() if selected_team_id else Athlete.query.order_by(Athlete.last_name).all()
     attendance_records = Attendance.query.filter_by(date=today).all()
-    attendance_data = {record.athlete_id: record.status for record in attendance_records}
-    notes_data = {record.athlete_id: record.notes for record in attendance_records}
-
-    present_count = sum(1 for status in attendance_data.values() if status == "Present")
-    absent_count = sum(1 for status in attendance_data.values() if status == "Absent")
+    attendance_data = {r.athlete_id: r.status for r in attendance_records}
+    notes_data = {r.athlete_id: r.notes for r in attendance_records}
+    present_count = sum(1 for s in attendance_data.values() if s == "Present")
+    absent_count = sum(1 for s in attendance_data.values() if s == "Absent")
     unmarked_count = len(athletes) - (present_count + absent_count)
-
     teams = Team.query.order_by(Team.name).all()
-
-    return render_template(
-        "attendance.html",
-        athletes=athletes,
-        attendance=attendance_data,
-        notes=notes_data,
-        teams=teams,
-        selected_team_id=int(selected_team_id) if selected_team_id else None,
-        date=today.isoformat(),
-        present_count=present_count,
-        absent_count=absent_count,
-        unmarked_count=unmarked_count
-    )
-
-
-
-    # Handle team filtering
-    team_id = request.args.get("team_id")
-    if team_id:
-        athletes = Athlete.query.filter_by(team_id=team_id).order_by(Athlete.last_name).all()
-    else:
-        athletes = Athlete.query.order_by(Athlete.last_name).all()
-
-    # Attendance data
-    attendance_data = {
-        record.athlete_id: record.status
-        for record in Attendance.query.filter_by(date=today).all()
-    }
-
-    notes_data = {
-        record.athlete_id: record.notes
-        for record in Attendance.query.filter_by(date=today).all()
-    }
-
-    teams = Team.query.order_by(Team.name).all()
-
-    present_count = sum(1 for status in attendance_data.values() if status == "Present")
-    absent_count = sum(1 for status in attendance_data.values() if status == "Absent")
-    unmarked_count = len(athletes) - (present_count + absent_count)
-
-    return render_template(
-        "attendance.html",
-        athletes=athletes,
-        attendance=attendance_data,
-        notes=notes_data,
-        teams=teams,
-        selected_team_id=int(team_id) if team_id else None,
-        date=today,
-        present_count=present_count,
-        absent_count=absent_count,
-        unmarked_count=unmarked_count
-    )
-
-
-    # Handle team filtering and attendance display
-    cursor.execute("SELECT id, name FROM teams ORDER BY name")
-    teams = cursor.fetchall()
-
-    team_id = request.args.get("team_id")
-    if team_id:
-        cursor.execute(
-            "SELECT id, first_name, last_name FROM athletes WHERE team_id = ? ORDER BY last_name",
-            (team_id,)
-        )
-    else:
-        cursor.execute("SELECT id, first_name, last_name FROM athletes ORDER BY last_name")
-    athletes = cursor.fetchall()
-
-    cursor.execute("SELECT athlete_id, status FROM attendance WHERE date = ?", (today,))
-    attendance_data = {row[0]: row[1] for row in cursor.fetchall()}
-
-    cursor.execute("SELECT athlete_id, notes FROM attendance WHERE date = ?", (today,))
-    notes_data = {row[0]: row[1] for row in cursor.fetchall()}
-
-    # Attendance summary
-    present_count = sum(1 for status in attendance_data.values() if status == "Present")
-    absent_count = sum(1 for status in attendance_data.values() if status == "Absent")
-    unmarked_count = len(athletes) - (present_count + absent_count)
-
-    return render_template(
-        "attendance.html",
-        athletes=athletes,
-        attendance=attendance_data,
-        notes=notes_data,
-        teams=teams,
-        selected_team_id=int(team_id) if team_id else None,
-        date=today,
-        present_count=present_count,
-        absent_count=absent_count,
-        unmarked_count=unmarked_count
-    )
+    return render_template("attendance.html", athletes=athletes, attendance=attendance_data, notes=notes_data, teams=teams, selected_team_id=int(selected_team_id) if selected_team_id else None, date=today, present_count=present_count, absent_count=absent_count, unmarked_count=unmarked_count)
 
 @app.route("/history", methods=["GET", "POST"])
 @login_required
 def history():
-    db = get_db()
-    cursor = db.cursor()
-
-    # Get available dates
-    cursor.execute("SELECT DISTINCT date FROM attendance ORDER BY date DESC")
-    dates = [row[0] for row in cursor.fetchall()]
-
-    # Get available teams
-    cursor.execute("SELECT id, name FROM teams ORDER BY name")
-    teams = cursor.fetchall()
-
-    # Get selected values
+    dates = db.session.query(Attendance.date).distinct().order_by(Attendance.date.desc()).all()
     selected_date = request.form.get("selected_date") or datetime.date.today().isoformat()
     selected_team_id = request.form.get("team_id")
 
-    # Base query
-    query = """
-        SELECT athletes.first_name, athletes.last_name, 
-               COALESCE(attendance.status, 'Present') AS status, 
-               attendance.notes
-        FROM athletes
-        LEFT JOIN attendance 
-            ON attendance.athlete_id = athletes.id 
-            AND attendance.date = ?
-    """
-
-    params = [selected_date]
-
+    query = db.session.query(Athlete.first_name, Athlete.last_name, Attendance.status, Attendance.notes).join(Attendance, (Attendance.athlete_id == Athlete.id) & (Attendance.date == selected_date), isouter=True)
     if selected_team_id:
-        query += " WHERE athletes.team_id = ?"
-        params.append(selected_team_id)
+        query = query.filter(Athlete.team_id == selected_team_id)
+    query = query.order_by(Athlete.last_name, Athlete.first_name)
 
-    query += " ORDER BY athletes.last_name, athletes.first_name"
+    teams = Team.query.order_by(Team.name).all()
 
-    cursor.execute(query, tuple(params))
-    history_data = cursor.fetchall()
-
-    return render_template(
-        "history.html",
-        dates=dates,
-        teams=teams,
-        selected_date=selected_date,
-        selected_team_id=int(selected_team_id) if selected_team_id else None,
-        history_data=history_data
-    )
-
-
-
-
-@app.route("/history/<date>")
-@login_required
-def history_by_date(date):
-    db = get_db()
-    cursor = db.cursor()
-
-    # Get all dates for dropdown
-    cursor.execute("SELECT DISTINCT date FROM attendance ORDER BY date DESC")
-    dates = [row[0] for row in cursor.fetchall()]
-
-    # Get all athletes and their status for the given date
-    cursor.execute("""
-        SELECT athletes.first_name, athletes.last_name, 
-               COALESCE(attendance.status, 'Present') as status, 
-               attendance.notes
-        FROM athletes
-        LEFT JOIN attendance 
-            ON attendance.athlete_id = athletes.id 
-            AND attendance.date = ?
-        ORDER BY athletes.last_name, athletes.first_name
-    """, (date,))
-    history_data = cursor.fetchall()
-
-    return render_template(
-        "history.html",
-        dates=dates,
-        selected_date=date,
-        history_data=history_data
-    )
-
-# Add this to your `app.py`
-@app.route("/athlete_report", methods=["GET", "POST"])
-@login_required
-def athlete_report():
-    db = get_db()
-    cursor = db.cursor()
-
-    # Get all athletes for the dropdown
-    cursor.execute("SELECT id, first_name, last_name FROM athletes ORDER BY last_name, first_name")
-    athletes = cursor.fetchall()
-
-    selected_id = int(request.form.get("athlete_id")) if request.form.get("athlete_id") else None
-    absences = []
-
-    if selected_id:
-        cursor.execute("""
-    SELECT date, notes
-    FROM attendance
-    WHERE athlete_id = ? AND status = 'Absent'
-    ORDER BY date DESC
-""", (selected_id,))
-
-        absences = cursor.fetchall()
-
-    return render_template(
-        "athlete_report.html",
-        athletes=athletes,
-        selected_id=int(selected_id) if selected_id else None,
-        absences=absences
-    )
-
-@app.route("/flagged")
-@login_required
-def flagged_athletes():
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("""
-        SELECT athletes.id, athletes.first_name, athletes.last_name, COUNT(*) AS absence_count
-        FROM attendance
-        JOIN athletes ON attendance.athlete_id = athletes.id
-        WHERE attendance.status = 'Absent'
-        GROUP BY athletes.id
-        HAVING absence_count >= 5
-        ORDER BY absence_count DESC
-    """)
-
-    flagged = cursor.fetchall()
-
-    return render_template("flagged.html", flagged=flagged)
-
-from werkzeug.security import generate_password_hash
+    return render_template("history.html", dates=[d[0] for d in dates], selected_date=selected_date, teams=teams, selected_team_id=int(selected_team_id) if selected_team_id else None, history_data=query.all())
 
 @app.route("/add_coach", methods=["GET", "POST"])
 @login_required
 def add_coach():
-    db = get_db()
-    cursor = db.cursor()
-
-    # Fetch all teams for dropdown
-    cursor.execute("SELECT id, name FROM teams ORDER BY name")
-    teams = cursor.fetchall()
-
+    teams = Team.query.order_by(Team.name).all()
     message = None
-
     if request.method == "POST":
         name = request.form["name"]
         username = request.form["username"]
         password = request.form["password"]
         team_id = request.form.get("team_id") or None
-
         hashed_password = generate_password_hash(password)
-
         try:
-            cursor.execute("""
-                INSERT INTO coaches (name, username, password, team_id)
-                VALUES (?, ?, ?, ?)
-            """, (name, username, hashed_password, team_id))
-            db.commit()
+            new_coach = Coach(name=name, username=username, password=hashed_password, team_id=int(team_id) if team_id else None)
+            db.session.add(new_coach)
+            db.session.commit()
             message = "Coach added successfully."
-        except sqlite3.IntegrityError:
-            message = "Username already exists."
-
+        except Exception as e:
+            db.session.rollback()
+            message = f"Error: {str(e)}"
     return render_template("add_coach.html", teams=teams, message=message)
 
-
-@app.route("/reset_password", methods=["GET", "POST"])
-@login_required
-def reset_password():
-    db = get_db()
-    cursor = db.cursor()
-
-    # Get list of coaches
-    cursor.execute("SELECT id, name FROM coaches ORDER BY name")
-    coaches = cursor.fetchall()
-
-    message = None
-
-    if request.method == "POST":
-        coach_id = request.form["coach_id"]
-        new_password = request.form["new_password"]
-        hashed = generate_password_hash(new_password)
-
-        cursor.execute("UPDATE coaches SET password = ? WHERE id = ?", (hashed, coach_id))
-        db.commit()
-        message = "Password successfully reset."
-
-    return render_template("reset_password.html", coaches=coaches, message=message)
-
-@app.route("/manage_roster", methods=["GET", "POST"])
-@login_required
-def manage_roster():
-    teams = Team.query.order_by(Team.name).all()
-    message = None
-
-    if request.method == "POST":
-        action = request.form.get("action")
-
-        if action == "add":
-            first_name = request.form["first_name"]
-            last_name = request.form["last_name"]
-            grade = request.form["grade"]
-            gender = request.form["gender"]
-            team_id = request.form.get("team_id") or None
-
-            new_athlete = Athlete(
-                first_name=first_name,
-                last_name=last_name,
-                team_id=int(team_id) if team_id else None
-            )
-            try:
-                db.session.add(new_athlete)
-                db.session.commit()
-                message = "Athlete added."
-            except Exception as e:
-                db.session.rollback()
-                message = f"Error adding athlete: {e}"
-
-        elif action == "delete":
-            athlete_id = request.form["athlete_id"]
-            athlete = db.session.get(Athlete, int(athlete_id))
-            if athlete:
-                db.session.delete(athlete)
-                db.session.commit()
-                message = "Athlete removed."
-
-    athletes = Athlete.query.order_by(Athlete.last_name).all()
-    return render_template("manage_roster.html", teams=teams, athletes=athletes, message=message)
-
-
-@app.route("/manage_absences", methods=["GET", "POST"])
-@login_required
-def manage_absences():
-    db = get_db()
-    cursor = db.cursor()
-
-    # Get all athletes for the dropdown
-    cursor.execute("SELECT id, first_name, last_name FROM athletes ORDER BY LOWER(last_name), LOWER(first_name)")
-    athletes = cursor.fetchall()
-
-    selected_id = request.form.get("athlete_id") or request.args.get("athlete_id")
-    absences = []
-
-    if selected_id:
-        # Handle deletion
-        if request.method == "POST" and request.form.get("delete_id"):
-            delete_id = request.form.get("delete_id")
-            cursor.execute("DELETE FROM attendance WHERE id = ?", (delete_id,))
-            db.commit()
-
-        # Get absences after possible deletion
-        cursor.execute("""
-            SELECT id, date, notes
-            FROM attendance
-            WHERE athlete_id = ? AND status = 'Absent'
-            ORDER BY date DESC
-        """, (selected_id,))
-        absences = cursor.fetchall()
-
-    return render_template("manage_absences.html", athletes=athletes, selected_id=int(selected_id) if selected_id else None, absences=absences)
-
-
-
-
 @app.route('/import_csv', methods=['GET', 'POST'])
+@login_required
 def import_csv():
     if request.method == 'POST':
         file = request.files['file']
@@ -529,59 +152,29 @@ def import_csv():
             try:
                 stream = TextIOWrapper(file.stream)
                 csv_input = csv.reader(stream)
-                next(csv_input)  # Skip header
-
+                next(csv_input)
                 for row in csv_input:
                     first_name, last_name, team_id = row
-                    new_athlete = Athlete(first_name=first_name, last_name=last_name, team_id=int(team_id))
-                    db.session.add(new_athlete)
-
+                    db.session.add(Athlete(first_name=first_name, last_name=last_name, team_id=int(team_id)))
                 db.session.commit()
                 flash('CSV imported successfully.')
             except Exception as e:
                 flash(f'Error importing CSV: {e}')
             return redirect(url_for('home'))
-        else:
-            flash('Invalid file type. Please upload a .csv file.')
-            return redirect(url_for('import_csv'))
-
+        flash('Invalid file type. Please upload a .csv file.')
     return render_template('import_csv.html')
-
-
-
-# Database setup and teardown
-def get_db():
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-    return db
-
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
 
 @app.route("/seed_teams")
 def seed_teams():
-    # Only run this once to avoid duplicates
     if not Team.query.first():
-        teams = ["Undercut", "Chicane", "Box Box", "Push Mode"]
-        for name in teams:
+        for name in ["Undercut", "Chicane", "Box Box", "Push Mode"]:
             db.session.add(Team(name=name))
         db.session.commit()
         return "✅ Teams seeded!"
-    else:
-        return "⚠️ Teams already exist."
-
-
-# Run the app
-'''if __name__ == "__main__":
-    app.run(debug=True)'''
-
+    return "⚠️ Teams already exist."
 
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-        print("✅ Team table created")
-
+        print("✅ Tables created")
+    app.run(debug=True)
