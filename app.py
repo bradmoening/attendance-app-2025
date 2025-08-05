@@ -16,6 +16,12 @@ app.secret_key = 'boomer'  # Needed for session management
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+if not os.environ.get("DATABASE_URL"):
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test_local.db'
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
+
+
 # Create a SQLAlchemy instance
 db = SQLAlchemy(app)
 
@@ -24,6 +30,21 @@ class Athlete(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     team_id = db.Column(db.Integer, nullable=False)
+
+class Team(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+
+
+class Attendance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    athlete_id = db.Column(db.Integer, db.ForeignKey('athlete.id'), nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    status = db.Column(db.String(20), nullable=False)
+    notes = db.Column(db.String(255), nullable=True)
+
+    athlete = db.relationship("Athlete", backref="attendance_records")
+
 
 
 
@@ -93,35 +114,69 @@ def logout():
 @app.route("/attendance", methods=["GET", "POST"])
 @login_required
 def attendance():
-    db = get_db()
-    cursor = db.cursor()
     today = datetime.date.today().isoformat()
 
-    # Handle attendance marking or toggling
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
         note = request.form.get("note", "")
 
         if athlete_id:
-            # Check for existing record (should only be "Absent")
-            cursor.execute("SELECT id FROM attendance WHERE athlete_id = ? AND date = ?", (athlete_id, today))
-            existing = cursor.fetchone()
+            existing = Attendance.query.filter_by(athlete_id=athlete_id, date=today).first()
 
             if existing:
-    # If already marked absent, change to present
-                cursor.execute(
-                    "UPDATE attendance SET status = ?, notes = ? WHERE id = ?",
-                    ("Present", note, existing[0])
-                )
+                # Update from Absent to Present
+                existing.status = "Present"
+                existing.notes = note
             else:
-                # Insert new absence
-                cursor.execute(
-                    "INSERT INTO attendance (athlete_id, date, status, notes) VALUES (?, ?, ?, ?)",
-                    (athlete_id, today, "Absent", note)
+                # Mark as Absent
+                new_entry = Attendance(
+                    athlete_id=athlete_id,
+                    date=today,
+                    status="Absent",
+                    notes=note
                 )
+                db.session.add(new_entry)
 
-            db.commit()
+            db.session.commit()
+
         return redirect(url_for('attendance', team_id=request.args.get("team_id")))
+
+    # Handle team filtering
+    team_id = request.args.get("team_id")
+    if team_id:
+        athletes = Athlete.query.filter_by(team_id=team_id).order_by(Athlete.last_name).all()
+    else:
+        athletes = Athlete.query.order_by(Athlete.last_name).all()
+
+    # Attendance data
+    attendance_data = {
+        record.athlete_id: record.status
+        for record in Attendance.query.filter_by(date=today).all()
+    }
+
+    notes_data = {
+        record.athlete_id: record.notes
+        for record in Attendance.query.filter_by(date=today).all()
+    }
+
+    teams = Team.query.order_by(Team.name).all()
+
+    present_count = sum(1 for status in attendance_data.values() if status == "Present")
+    absent_count = sum(1 for status in attendance_data.values() if status == "Absent")
+    unmarked_count = len(athletes) - (present_count + absent_count)
+
+    return render_template(
+        "attendance.html",
+        athletes=athletes,
+        attendance=attendance_data,
+        notes=notes_data,
+        teams=teams,
+        selected_team_id=int(team_id) if team_id else None,
+        date=today,
+        present_count=present_count,
+        absent_count=absent_count,
+        unmarked_count=unmarked_count
+    )
 
 
     # Handle team filtering and attendance display
@@ -473,5 +528,13 @@ def close_connection(exception):
         db.close()
 
 # Run the app
+'''if __name__ == "__main__":
+    app.run(debug=True)'''
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    with app.app_context():
+        db.create_all()
+    print("✅ Tables created")
+
+
+
