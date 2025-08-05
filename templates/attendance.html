@@ -161,7 +161,8 @@ li {
           <input type="hidden" name="athlete_id" value="{{ athlete[0] }}">
           <button type="submit"
                   class="status-btn {% if attendance.get(athlete[0]) == 'Absent' %}absent{% else %}present{% endif %}">
-            {{ athlete[1] }} {{ athlete[2][0] }}: {% if attendance.get(athlete[0]) == 'Absent' %}A{% else %}P{% endif %}
+{{ athlete.first_name }} {{ athlete.last_name[0] }}: 
+{% if attendance.get(athlete.id) == 'Absent' %}A{% else %}P{% endif %}
           </button>
           <input type="text" name="note" class="note-field"
                  placeholder="Note" value="{{ notes.get(athlete[0], '') }}">
