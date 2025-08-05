@@ -165,6 +165,13 @@ def import_csv():
         flash('Invalid file type. Please upload a .csv file.')
     return render_template('import_csv.html')
 
+@app.route("/flagged_athletes")
+@login_required
+def flagged_athletes():
+    return "<h1>Coming soon: Flagged Athletes report</h1>"
+
+
+
 @app.route("/seed_teams")
 def seed_teams():
     if not Team.query.first():
