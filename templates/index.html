@@ -78,13 +78,12 @@ a.button:hover {
     <li><a class="button" href="{{ url_for('attendance') }}">Take Attendance</a></li>
     <li><a class="button" href="{{ url_for('history') }}">View Attendance History</a></li>
 
-    {% comment %}
-    <li><a class="button" href="{{ url_for('athlete_report') }}">Athlete Absence Report</a></li>
-    <li><a class="button" href="{{ url_for('flagged_athletes') }}">Flagged Athletes</a></li>
-    <li><a class="button" href="{{ url_for('manage_roster') }}">Manage Roster</a></li>
-    <li><a class="button" href="{{ url_for('manage_absences') }}">Manage Absences</a></li>
-    <li><a class="button" href="{{ url_for('reset_password') }}">Reset Coach Password</a></li>
-    {% endcomment %}
+   {# <li><a class="button" href="{{ url_for('athlete_report') }}">Athlete Absence Report</a></li> #}
+{# <li><a class="button" href="{{ url_for('flagged_athletes') }}">Flagged Athletes</a></li> #}
+{# <li><a class="button" href="{{ url_for('manage_roster') }}">Manage Roster</a></li> #}
+{# <li><a class="button" href="{{ url_for('manage_absences') }}">Manage Absences</a></li> #}
+{# <li><a class="button" href="{{ url_for('reset_password') }}">Reset Coach Password</a></li> #}
+
 
     <li><a class="button" href="{{ url_for('add_coach') }}">Add Coach</a></li>
     <li><a class="button" href="{{ url_for('logout') }}">Logout</a></li>
