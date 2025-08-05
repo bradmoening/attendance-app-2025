@@ -104,7 +104,14 @@ def attendance():
         return redirect(url_for('attendance', team_id=request.args.get("team_id")))
 
     selected_team_id = request.args.get("team_id")
-    athletes = Athlete.query.filter_by(team_id=selected_team_id).order_by(Athlete.last_name).all() if selected_team_id else Athlete.query.order_by(Athlete.last_name).all()
+    if selected_team_id:
+        selected_team_id = int(selected_team_id)
+        athletes = Athlete.query.filter_by(team_id=selected_team_id).order_by(Athlete.last_name).all()
+    else:
+        athletes = Athlete.query.order_by(Athlete.last_name).all()
+
+
+    
     attendance_records = Attendance.query.filter_by(date=today).all()
     attendance_data = {r.athlete_id: r.status for r in attendance_records}
     notes_data = {r.athlete_id: r.notes for r in attendance_records}
