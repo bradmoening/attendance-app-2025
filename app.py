@@ -170,6 +170,10 @@ def import_csv():
 def flagged_athletes():
     return "<h1>Coming soon: Flagged Athletes report</h1>"
 
+@app.route("/manage_roster")
+@login_required
+def manage_roster():
+    return "<h1>Manage Roster page coming soon</h1>"
 
 
 @app.route("/seed_teams")
