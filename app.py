@@ -531,10 +531,13 @@ def close_connection(exception):
 '''if __name__ == "__main__":
     app.run(debug=True)'''
 
+# Run the app
 if __name__ == "__main__":
+    app.run(debug=True)
+else:
+    # Run this when deployed on Render (not using __main__)
     with app.app_context():
         db.create_all()
-    print("✅ Tables created")
-
+        print("✅ Tables created on Render")
 
 
