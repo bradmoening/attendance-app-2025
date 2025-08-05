@@ -29,11 +29,14 @@ class Athlete(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
-    team_id = db.Column(db.Integer, nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
 
 class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+
+    athletes = db.relationship('Athlete', backref='team', lazy=True)
+
 
 
 class Attendance(db.Model):
@@ -110,7 +113,6 @@ def logout():
     logout_user()
     return redirect(url_for("login"))
 
-# Attendance route
 @app.route("/attendance", methods=["GET", "POST"])
 @login_required
 def attendance():
@@ -121,25 +123,54 @@ def attendance():
         note = request.form.get("note", "")
 
         if athlete_id:
-            existing = Attendance.query.filter_by(athlete_id=athlete_id, date=today).first()
-
-            if existing:
-                # Update from Absent to Present
-                existing.status = "Present"
-                existing.notes = note
+            # Check for existing attendance record for today
+            record = Attendance.query.filter_by(athlete_id=athlete_id, date=today).first()
+            if record:
+                record.status = "Present"
+                record.notes = note
             else:
-                # Mark as Absent
-                new_entry = Attendance(
+                new_record = Attendance(
                     athlete_id=athlete_id,
                     date=today,
                     status="Absent",
                     notes=note
                 )
-                db.session.add(new_entry)
-
+                db.session.add(new_record)
             db.session.commit()
 
         return redirect(url_for('attendance', team_id=request.args.get("team_id")))
+
+    # Get all teams
+    teams = Team.query.order_by(Team.name).all()
+
+    team_id = request.args.get("team_id")
+    if team_id:
+        athletes = Athlete.query.filter_by(team_id=team_id).order_by(Athlete.last_name).all()
+    else:
+        athletes = Athlete.query.order_by(Athlete.last_name).all()
+
+    # Get attendance records for today
+    records = Attendance.query.filter_by(date=today).all()
+    attendance_data = {r.athlete_id: r.status for r in records}
+    notes_data = {r.athlete_id: r.notes for r in records}
+
+    present_count = sum(1 for status in attendance_data.values() if status == "Present")
+    absent_count = sum(1 for status in attendance_data.values() if status == "Absent")
+    unmarked_count = len(athletes) - (present_count + absent_count)
+
+    return render_template(
+        "attendance.html",
+        athletes=athletes,
+        attendance=attendance_data,
+        notes=notes_data,
+        teams=teams,
+        selected_team_id=int(team_id) if team_id else None,
+        date=today,
+        present_count=present_count,
+        absent_count=absent_count,
+        unmarked_count=unmarked_count
+    )
+
 
     # Handle team filtering
     team_id = request.args.get("team_id")
@@ -407,16 +438,11 @@ def reset_password():
         message = "Password successfully reset."
 
     return render_template("reset_password.html", coaches=coaches, message=message)
+
 @app.route("/manage_roster", methods=["GET", "POST"])
 @login_required
 def manage_roster():
-    db = get_db()
-    cursor = db.cursor()
-
-    # Get all teams for the dropdown
-    cursor.execute("SELECT id, name FROM teams ORDER BY name")
-    teams = cursor.fetchall()
-
+    teams = Team.query.order_by(Team.name).all()
     message = None
 
     if request.method == "POST":
@@ -429,26 +455,28 @@ def manage_roster():
             gender = request.form["gender"]
             team_id = request.form.get("team_id") or None
 
+            new_athlete = Athlete(
+                first_name=first_name,
+                last_name=last_name,
+                team_id=int(team_id) if team_id else None
+            )
             try:
-                cursor.execute("""
-                    INSERT INTO athletes (first_name, last_name, grade, gender, team_id)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (first_name, last_name, grade, gender, team_id))
-                db.commit()
+                db.session.add(new_athlete)
+                db.session.commit()
                 message = "Athlete added."
-            except sqlite3.IntegrityError as e:
+            except Exception as e:
+                db.session.rollback()
                 message = f"Error adding athlete: {e}"
 
         elif action == "delete":
             athlete_id = request.form["athlete_id"]
-            cursor.execute("DELETE FROM athletes WHERE id = ?", (athlete_id,))
-            db.commit()
-            message = "Athlete removed."
+            athlete = db.session.get(Athlete, int(athlete_id))
+            if athlete:
+                db.session.delete(athlete)
+                db.session.commit()
+                message = "Athlete removed."
 
-    # Always fetch current athlete list
-    cursor.execute("SELECT id, first_name, last_name FROM athletes ORDER BY last_name")
-    athletes = cursor.fetchall()
-
+    athletes = Athlete.query.order_by(Athlete.last_name).all()
     return render_template("manage_roster.html", teams=teams, athletes=athletes, message=message)
 
 
@@ -527,13 +555,26 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
+@app.route("/seed_teams")
+def seed_teams():
+    # Only run this once to avoid duplicates
+    if not Team.query.first():
+        teams = ["Undercut", "Chicane", "Box Box", "Push Mode"]
+        for name in teams:
+            db.session.add(Team(name=name))
+        db.session.commit()
+        return "✅ Teams seeded!"
+    else:
+        return "⚠️ Teams already exist."
+
+
 # Run the app
 '''if __name__ == "__main__":
     app.run(debug=True)'''
 
-# Run the app
+
 if __name__ == "__main__":
-    app.run(debug=True)
-
-
+    with app.app_context():
+        db.create_all()
+        print("✅ Team table created")
 
