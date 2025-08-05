@@ -14,7 +14,8 @@ app.secret_key = 'boomer'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL", "sqlite:///test_local.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+db = SQLAlchemy()
+db.init_app(app)
 
 # Models
 class Athlete(db.Model):
@@ -173,10 +174,12 @@ def seed_teams():
         return "✅ Teams seeded!"
     return "⚠️ Teams already exist."
 
-if __name__ != "__main__":
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+        print("✅ Tables created")
+    app.run(debug=True)
+else:
     with app.app_context():
         db.create_all()
         print("✅ Tables created on Render")
-else:
-    app.run(debug=True)
-
