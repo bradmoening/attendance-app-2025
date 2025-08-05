@@ -181,5 +181,9 @@ if __name__ == "__main__":
     app.run(debug=True)
 else:
     with app.app_context():
-        db.create_all()
-        print("✅ Tables created on Render")
+        try:
+            db.create_all()
+            print("✅ Tables created")
+        except Exception as e:
+            print(f"❌ Error during db.create_all(): {e}")
+
