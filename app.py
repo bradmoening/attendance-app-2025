@@ -85,6 +85,8 @@ def attendance():
     today = datetime.date.today().isoformat()
 
     selected_team_id = request.args.get("team_id") or request.form.get("team_id")
+    print(f"🔍 team_id from request: '{selected_team_id}'")
+
 
     # Convert to int if it's a valid digit, otherwise set to None (for "Show All Teams")
     if selected_team_id and selected_team_id.isdigit():
