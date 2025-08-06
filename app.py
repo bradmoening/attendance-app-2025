@@ -85,13 +85,13 @@ def attendance():
     today = datetime.date.today().isoformat()
 
     # Get team_id from GET or POST
-    selected_team_id = request.args.get("team_id") or request.form.get("team_id", "")
+    selected_team_id = request.args.get("team_id") or request.form.get("team_id")
     print(f"🔍 team_id from request: '{selected_team_id}'")
 
-    # Normalize team_id to int if valid
-    if selected_team_id.isdigit():
-        selected_team_id = int(selected_team_id)
-    else:
+    # Normalize team_id to int or None
+    try:
+        selected_team_id = int(selected_team_id) if selected_team_id else None
+    except (ValueError, TypeError):
         selected_team_id = None
     print(f"✅ Normalized selected_team_id: {selected_team_id}")
 
@@ -130,7 +130,6 @@ def attendance():
     unmarked_count = len(athletes) - (present_count + absent_count)
     teams = Team.query.order_by(Team.name).all()
 
-    # Render
     return render_template(
         "attendance.html",
         athletes=athletes,
