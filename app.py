@@ -229,6 +229,18 @@ def nuke():
     return "💣 Database nuked and recreated."
 
 
+@app.before_first_request
+def seed_default_coach():
+    from werkzeug.security import generate_password_hash
+    if not Coach.query.first():
+        coach = Coach(
+            name="Admin",
+            username="admin",
+            password=generate_password_hash("adminpass")
+        )
+        db.session.add(coach)
+        db.session.commit()
+        print("✅ Default coach created in @before_first_request: admin / adminpass")
 
 
 
@@ -238,18 +250,6 @@ if __name__ == "__main__":
         db.create_all()
         print("✅ Tables created")
 
-        # Seed a default coach if none exists
-        if not Coach.query.first():
-            from werkzeug.security import generate_password_hash
-            coach = Coach(
-                name="Admin",
-                username="admin",
-                password=generate_password_hash("adminpass")
-            )
-            db.session.add(coach)
-            db.session.commit()
-            print("✅ Default coach created: admin / adminpass")
-
     app.run(debug=True)
 
 else:
@@ -257,19 +257,6 @@ else:
         try:
             db.create_all()
             print("✅ Tables created")
-
-            # Seed a default coach on Render too
-            if not Coach.query.first():
-                from werkzeug.security import generate_password_hash
-                coach = Coach(
-                    name="Admin",
-                    username="admin",
-                    password=generate_password_hash("adminpass")
-                )
-                db.session.add(coach)
-                db.session.commit()
-                print("✅ Default coach created on Render: admin / adminpass")
-
         except Exception as e:
             print(f"❌ Error during db.create_all(): {e}")
 
