@@ -255,19 +255,28 @@ def seed_default_coach():
         print("✅ Default coach created: admin / adminpass")
 
 
+def seed_teams():
+    if not Team.query.first():
+        for name in ["Undercut", "Chicane", "Box Box", "Push Mode"]:
+            db.session.add(Team(name=name))
+        db.session.commit()
+        print("✅ Teams seeded!")
+
+
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
         print("✅ Tables created")
         seed_default_coach()
-
+        seed_teams()
     app.run(debug=True)
-
 else:
     with app.app_context():
         try:
             db.create_all()
             print("✅ Tables created")
             seed_default_coach()
+            seed_teams()
         except Exception as e:
             print(f"❌ Error during db.create_all(): {e}")
+
