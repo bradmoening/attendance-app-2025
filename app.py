@@ -84,21 +84,18 @@ def logout():
 def attendance():
     today = datetime.date.today().isoformat()
 
-    selected_team_id = request.args.get("team_id") or request.form.get("team_id")
+    # Get team_id from GET or POST
+    selected_team_id = request.args.get("team_id") or request.form.get("team_id", "")
     print(f"🔍 team_id from request: '{selected_team_id}'")
 
-
-    # Convert to int if it's a valid digit, otherwise set to None (for "Show All Teams")
-    if selected_team_id and selected_team_id.isdigit():
+    # Normalize team_id to int if valid
+    if selected_team_id.isdigit():
         selected_team_id = int(selected_team_id)
     else:
         selected_team_id = None
-        if selected_team_id:
-            try:
-                selected_team_id = int(selected_team_id)
-            except ValueError:
-                selected_team_id = None
+    print(f"✅ Normalized selected_team_id: {selected_team_id}")
 
+    # POST: Handle attendance marking
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
         note = request.form.get("note", "")
@@ -115,14 +112,16 @@ def attendance():
                     notes=note
                 ))
             db.session.commit()
-        # Redirect with correct team_id
-        return redirect(url_for('attendance', team_id=selected_team_id))
+        # Keep selected team after submission
+        return redirect(url_for("attendance", team_id=selected_team_id))
 
+    # GET: Load athletes
     if selected_team_id:
         athletes = Athlete.query.filter_by(team_id=selected_team_id).order_by(Athlete.last_name).all()
     else:
         athletes = Athlete.query.order_by(Athlete.last_name).all()
 
+    # Attendance data
     attendance_records = Attendance.query.filter_by(date=today).all()
     attendance_data = {r.athlete_id: r.status for r in attendance_records}
     notes_data = {r.athlete_id: r.notes for r in attendance_records}
@@ -131,6 +130,7 @@ def attendance():
     unmarked_count = len(athletes) - (present_count + absent_count)
     teams = Team.query.order_by(Team.name).all()
 
+    # Render
     return render_template(
         "attendance.html",
         athletes=athletes,
@@ -143,6 +143,7 @@ def attendance():
         absent_count=absent_count,
         unmarked_count=unmarked_count
     )
+
 
 @app.route("/history", methods=["GET", "POST"])
 @login_required
