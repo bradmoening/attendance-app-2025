@@ -86,14 +86,14 @@ def attendance():
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
         note = request.form.get("note", "")
+        selected_team_id = request.form.get("team_id")  # 🔥 new: pull team from form
+
         if athlete_id:
             record = Attendance.query.filter_by(athlete_id=athlete_id, date=today).first()
             if record:
-                # Toggle status
                 record.status = "Absent" if record.status == "Present" else "Present"
                 record.notes = note
             else:
-                # First time marking = default to Present
                 db.session.add(Attendance(
                     athlete_id=athlete_id,
                     date=today,
@@ -101,7 +101,9 @@ def attendance():
                     notes=note
                 ))
             db.session.commit()
-        return redirect(url_for('attendance', team_id=request.args.get("team_id")))
+
+        return redirect(url_for('attendance', team_id=selected_team_id))
+
 
     selected_team_id = request.args.get("team_id")
     if selected_team_id:

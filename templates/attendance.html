@@ -157,6 +157,9 @@
       <div class="athlete-row">
         <form method="post" class="button-note-wrapper">
           <input type="hidden" name="athlete_id" value="{{ athlete.id }}">
+          <input type="hidden" name="team_id" value="{{ selected_team_id }}">
+
+
           <button type="submit"
                   class="status-btn {% if attendance.get(athlete.id) == 'Absent' %}absent{% else %}present{% endif %}">
             {{ athlete.first_name }} {{ athlete.last_name[0] }}:
