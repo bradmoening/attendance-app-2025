@@ -222,6 +222,17 @@ def seed_teams():
         return "✅ Teams seeded!"
     return "⚠️ Teams already exist."
 
+@app.route("/nuke")
+def nuke():
+    db.drop_all()
+    db.create_all()
+    return "💣 Database nuked and recreated."
+
+
+
+
+
+
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
