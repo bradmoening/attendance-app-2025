@@ -242,13 +242,24 @@ def seed_default_coach():
         db.session.commit()
         print("✅ Default coach created in @before_first_request: admin / adminpass")
 
-
+def seed_default_coach():
+    from werkzeug.security import generate_password_hash
+    if not Coach.query.first():
+        coach = Coach(
+            name="Admin",
+            username="admin",
+            password=generate_password_hash("adminpass")
+        )
+        db.session.add(coach)
+        db.session.commit()
+        print("✅ Default coach created: admin / adminpass")
 
 
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
         print("✅ Tables created")
+        seed_default_coach()
 
     app.run(debug=True)
 
@@ -257,7 +268,6 @@ else:
         try:
             db.create_all()
             print("✅ Tables created")
+            seed_default_coach()
         except Exception as e:
             print(f"❌ Error during db.create_all(): {e}")
-
-
