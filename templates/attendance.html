@@ -116,19 +116,19 @@
   <hr>
 
   <h2>Attendance {{ date }}</h2>
+<p>Selected team ID: {{ selected_team_id }}</p>
 
   <!-- Team Selection Dropdown -->
   <form method="get" action="{{ url_for('attendance') }}">
-    <label for="team_id">Select Team:</label>
-    <select name="team_id" id="team_id" onchange="this.form.submit()">
-      <option value="">-- Show All Teams --</option>
-      {% for team in teams %}
-        <option value="{{ team.id }}" {% if team.id == selected_team_id %}selected{% endif %}>
-          {{ team.name }}
-        </option>
-      {% endfor %}
-    </select>
-  </form>
+  <label for="teamSelect">Filter by Team:</label>
+  <select name="team_id" id="teamSelect" onchange="this.form.submit()">
+    <option value="">Show All Teams</option>
+    {% for team in teams %}
+      <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+    {% endfor %}
+  </select>
+</form>
+
 
   <ul>
     {% for athlete in athletes %}
