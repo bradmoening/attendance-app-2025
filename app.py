@@ -83,11 +83,17 @@ def logout():
 @login_required
 def attendance():
     today = datetime.date.today().isoformat()
+
+    selected_team_id = request.args.get("team_id") or request.form.get("team_id")
+    if selected_team_id:
+        try:
+            selected_team_id = int(selected_team_id)
+        except ValueError:
+            selected_team_id = None
+
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
         note = request.form.get("note", "")
-        selected_team_id = request.form.get("team_id")  # 🔥 new: pull team from form
-
         if athlete_id:
             record = Attendance.query.filter_by(athlete_id=athlete_id, date=today).first()
             if record:
@@ -101,19 +107,14 @@ def attendance():
                     notes=note
                 ))
             db.session.commit()
-
+        # Redirect with correct team_id
         return redirect(url_for('attendance', team_id=selected_team_id))
 
-
-    selected_team_id = request.args.get("team_id")
     if selected_team_id:
-        selected_team_id = int(selected_team_id)
         athletes = Athlete.query.filter_by(team_id=selected_team_id).order_by(Athlete.last_name).all()
     else:
         athletes = Athlete.query.order_by(Athlete.last_name).all()
 
-
-    
     attendance_records = Attendance.query.filter_by(date=today).all()
     attendance_data = {r.athlete_id: r.status for r in attendance_records}
     notes_data = {r.athlete_id: r.notes for r in attendance_records}
@@ -121,7 +122,19 @@ def attendance():
     absent_count = sum(1 for s in attendance_data.values() if s == "Absent")
     unmarked_count = len(athletes) - (present_count + absent_count)
     teams = Team.query.order_by(Team.name).all()
-    return render_template("attendance.html", athletes=athletes, attendance=attendance_data, notes=notes_data, teams=teams, selected_team_id=int(selected_team_id) if selected_team_id else None, date=today, present_count=present_count, absent_count=absent_count, unmarked_count=unmarked_count)
+
+    return render_template(
+        "attendance.html",
+        athletes=athletes,
+        attendance=attendance_data,
+        notes=notes_data,
+        teams=teams,
+        selected_team_id=selected_team_id,
+        date=today,
+        present_count=present_count,
+        absent_count=absent_count,
+        unmarked_count=unmarked_count
+    )
 
 @app.route("/history", methods=["GET", "POST"])
 @login_required

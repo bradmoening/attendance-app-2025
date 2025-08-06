@@ -4,58 +4,30 @@
   <meta charset="UTF-8">
   <title>Attendance</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <style>
-    .button-note-wrapper {
-      margin: 0;
-    }
-
-    form {
-      margin: 0;
-    }
-
     body {
       font-family: sans-serif;
       margin: 1rem;
       background-color: #eef2f5;
     }
 
-    ul {
-      padding: 0;
-      margin: 0;
-    }
-
-    li {
-      margin: 0;
-      padding: 0;
-    }
-
     nav {
       margin-bottom: 20px;
     }
 
-    h1 {
+    h2 {
       margin-bottom: 10px;
     }
 
-    p.legend {
-      margin-bottom: 20px;
-    }
-
     form {
-      margin-bottom: 20px;
+      margin: 0;
     }
 
     label {
       font-weight: bold;
     }
 
-    html {
-      scroll-behavior: smooth;
-    }
-
-    select,
-    input[type="text"] {
+    select, input[type="text"] {
       width: 100%;
       max-width: 300px;
       padding: 8px;
@@ -64,6 +36,12 @@
       border: 1px solid #ccc;
       margin-top: 6px;
       margin-bottom: 12px;
+    }
+
+    ul {
+      padding: 0;
+      margin: 0;
+      list-style-type: none;
     }
 
     .athlete-row {
@@ -152,23 +130,25 @@
     </select>
   </form>
 
-  <ul style="list-style-type: none; padding-left: 0;">
+  <ul>
     {% for athlete in athletes %}
-      <div class="athlete-row">
-        <form method="post" class="button-note-wrapper">
-          <input type="hidden" name="athlete_id" value="{{ athlete.id }}">
-          <input type="hidden" name="team_id" value="{{ selected_team_id }}">
+      <li>
+        <div class="athlete-row">
+          <form method="post" class="button-note-wrapper">
+            <input type="hidden" name="athlete_id" value="{{ athlete.id }}">
+            <input type="hidden" name="team_id" value="{{ selected_team_id or '' }}">
 
+            <button type="submit"
+                    class="status-btn {% if attendance.get(athlete.id) == 'Absent' %}absent{% else %}present{% endif %}">
+              {{ athlete.first_name }} {{ athlete.last_name[0] }}:
+              {% if attendance.get(athlete.id) == 'Absent' %}A{% else %}P{% endif %}
+            </button>
 
-          <button type="submit"
-                  class="status-btn {% if attendance.get(athlete.id) == 'Absent' %}absent{% else %}present{% endif %}">
-            {{ athlete.first_name }} {{ athlete.last_name[0] }}:
-            {% if attendance.get(athlete.id) == 'Absent' %}A{% else %}P{% endif %}
-          </button>
-          <input type="text" name="note" class="note-field"
-                 placeholder="Note" value="{{ notes.get(athlete.id, '') }}">
-        </form>
-      </div>
+            <input type="text" name="note" class="note-field"
+                   placeholder="Note" value="{{ notes.get(athlete.id, '') }}">
+          </form>
+        </div>
+      </li>
     {% endfor %}
   </ul>
 
