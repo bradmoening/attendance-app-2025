@@ -229,19 +229,6 @@ def nuke():
     return "💣 Database nuked and recreated."
 
 
-@app.before_first_request
-def seed_default_coach():
-    from werkzeug.security import generate_password_hash
-    if not Coach.query.first():
-        coach = Coach(
-            name="Admin",
-            username="admin",
-            password=generate_password_hash("adminpass")
-        )
-        db.session.add(coach)
-        db.session.commit()
-        print("✅ Default coach created in @before_first_request: admin / adminpass")
-
 def seed_default_coach():
     from werkzeug.security import generate_password_hash
     if not Coach.query.first():
