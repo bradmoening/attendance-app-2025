@@ -85,11 +85,17 @@ def attendance():
     today = datetime.date.today().isoformat()
 
     selected_team_id = request.args.get("team_id") or request.form.get("team_id")
-    if selected_team_id:
-        try:
-            selected_team_id = int(selected_team_id)
-        except ValueError:
-            selected_team_id = None
+
+    # Convert to int if it's a valid digit, otherwise set to None (for "Show All Teams")
+    if selected_team_id and selected_team_id.isdigit():
+        selected_team_id = int(selected_team_id)
+    else:
+        selected_team_id = None
+        if selected_team_id:
+            try:
+                selected_team_id = int(selected_team_id)
+            except ValueError:
+                selected_team_id = None
 
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
