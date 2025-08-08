@@ -17,6 +17,17 @@ app.secret_key = 'boomer'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL", "sqlite:///test_local.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///test_local.db")
+# Render sometimes hands out old-style URLs
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+
 db = SQLAlchemy()
 db.init_app(app)
 
@@ -99,10 +110,19 @@ def logout():
 @login_required
 def attendance():
     today = datetime.date.today().isoformat()
+    print("DB URI in use:", app.config.get("SQLALCHEMY_DATABASE_URI"))
+    from sqlalchemy import text
+    with db.engine.connect() as conn:
+        r = conn.execute(text("SELECT current_database()")).scalar()
+    print("Connected to DB:", r)
 
     # Get team_id from GET or POST
     selected_team_id = request.args.get("team_id") or request.form.get("team_id")
     print(f"🔍 team_id from request: '{selected_team_id}'")
+    print("Teams:", Team.query.count(), "Athletes:", Athlete.query.count())
+    print("selected_team_id(raw):", request.args.get("team_id"), request.form.get("team_id"))
+
+
 
     # Normalize team_id to int or None
     try:
@@ -197,26 +217,46 @@ def add_coach():
             message = f"Error: {str(e)}"
     return render_template("add_coach.html", teams=teams, message=message)
 
-@app.route('/import_csv', methods=['GET', 'POST'])
+import csv
+from io import TextIOWrapper
+
+@app.route("/import_csv", methods=["GET", "POST"])
 @login_required
 def import_csv():
-    if request.method == 'POST':
-        file = request.files['file']
-        if file and file.filename.endswith('.csv'):
-            try:
-                stream = TextIOWrapper(file.stream)
-                csv_input = csv.reader(stream)
-                next(csv_input)
-                for row in csv_input:
-                    first_name, last_name, team_id = row
-                    db.session.add(Athlete(first_name=first_name, last_name=last_name, team_id=int(team_id)))
-                db.session.commit()
-                flash('CSV imported successfully.')
-            except Exception as e:
-                flash(f'Error importing CSV: {e}')
-            return redirect(url_for('home'))
-        flash('Invalid file type. Please upload a .csv file.')
-    return render_template('import_csv.html')
+    if request.method == "POST":
+        file = request.files.get("file")
+        if not file:
+            flash("No file uploaded", "error")
+            return redirect(url_for("home"))
+
+        # Wrap file for CSV reader
+        f = TextIOWrapper(file.stream, encoding="utf-8", newline="")
+        reader = csv.DictReader(f)
+
+        # Get existing teams so we can match team names from CSV
+        teams = {t.name: t for t in Team.query.all()}
+
+        added = 0
+        for row in reader:
+            fn = (row.get("first_name") or "").strip()
+            ln = (row.get("last_name") or "").strip()
+            team_name = (row.get("team_name") or "").strip()
+
+            if not fn or not ln:
+                continue
+
+            team = teams.get(team_name)
+            team_id = team.id if team else None
+
+            db.session.add(Athlete(first_name=fn, last_name=ln, team_id=team_id))
+            added += 1
+
+        db.session.commit()
+        flash(f"Imported {added} athletes.", "success")
+        return redirect(url_for("home"))
+
+    return render_template("import_csv.html")
+
 
 @app.route("/flagged_athletes")
 @login_required
