@@ -127,61 +127,64 @@ def logout():
 @app.route("/attendance", methods=["GET", "POST"])
 @login_required
 def attendance():
+    # Use ISO string to match your DB column type
     today = datetime.date.today().isoformat()
-    print("DB URI in use:", app.config.get("SQLALCHEMY_DATABASE_URI"))
-    from sqlalchemy import text
-    with db.engine.connect() as conn:
-        r = conn.execute(text("SELECT current_database()")).scalar()
-    print("Connected to DB:", r)
 
-    # Get team_id from GET or POST
-    selected_team_id = request.args.get("team_id") or request.form.get("team_id")
-    print(f"🔍 team_id from request: '{selected_team_id}'")
-    print("Teams:", Team.query.count(), "Athletes:", Athlete.query.count())
-    print("selected_team_id(raw):", request.args.get("team_id"), request.form.get("team_id"))
-
-
-
-    # Normalize team_id to int or None
+    # Get team_id from querystring or form; normalize to int or None
+    raw_team_id = request.args.get("team_id") or request.form.get("team_id")
     try:
-        selected_team_id = int(selected_team_id) if selected_team_id else None
-    except (ValueError, TypeError):
+        selected_team_id = int(raw_team_id) if raw_team_id else None
+    except (TypeError, ValueError):
         selected_team_id = None
-    print(f"✅ Normalized selected_team_id: {selected_team_id}")
 
-    # POST: Handle attendance marking
+    # Handle toggle + note update
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
-        note = request.form.get("note", "")
+        note = (request.form.get("note") or "").strip()
         if athlete_id:
-            record = Attendance.query.filter_by(athlete_id=athlete_id, date=today).first()
-            if record:
-                record.status = "Absent" if record.status == "Present" else "Present"
-                record.notes = note
-            else:
-                db.session.add(Attendance(
-                    athlete_id=athlete_id,
-                    date=today,
-                    status="Present",
-                    notes=note
-                ))
-            db.session.commit()
-        # Keep selected team after submission
+            # Make sure athlete_id is an int; ignore if garbage
+            try:
+                aid = int(athlete_id)
+            except (TypeError, ValueError):
+                aid = None
+
+            if aid:
+                record = Attendance.query.filter_by(athlete_id=aid, date=today).first()
+                if record:
+                    record.status = "Absent" if record.status == "Present" else "Present"
+                    record.notes = note
+                else:
+                    db.session.add(Attendance(
+                        athlete_id=aid,
+                        date=today,
+                        status="Present",
+                        notes=note
+                    ))
+                db.session.commit()
+
+        # PRG: keep the current team filter after submit
         return redirect(url_for("attendance", team_id=selected_team_id))
 
-    # GET: Load athletes
+    # GET: fetch athletes (filtered if team selected)
     if selected_team_id:
-        athletes = Athlete.query.filter_by(team_id=selected_team_id).order_by(Athlete.last_name).all()
+        athletes = (Athlete.query
+                    .filter_by(team_id=selected_team_id)
+                    .order_by(Athlete.last_name, Athlete.first_name)
+                    .all())
     else:
-        athletes = Athlete.query.order_by(Athlete.last_name).all()
+        athletes = (Athlete.query
+                    .order_by(Athlete.last_name, Athlete.first_name)
+                    .all())
 
-    # Attendance data
-    attendance_records = Attendance.query.filter_by(date=today).all()
-    attendance_data = {r.athlete_id: r.status for r in attendance_records}
-    notes_data = {r.athlete_id: r.notes for r in attendance_records}
+    # Attendance & notes for today
+    today_records = Attendance.query.filter_by(date=today).all()
+    attendance_data = {r.athlete_id: r.status for r in today_records}
+    notes_data = {r.athlete_id: r.notes for r in today_records}
+
     present_count = sum(1 for s in attendance_data.values() if s == "Present")
     absent_count = sum(1 for s in attendance_data.values() if s == "Absent")
-    unmarked_count = len(athletes) - (present_count + absent_count)
+    unmarked_count = max(0, len(athletes) - (present_count + absent_count))
+
     teams = Team.query.order_by(Team.name).all()
 
     return render_template(
@@ -196,6 +199,7 @@ def attendance():
         absent_count=absent_count,
         unmarked_count=unmarked_count
     )
+
 
 
 @app.route("/history", methods=["GET", "POST"])
