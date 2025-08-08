@@ -33,23 +33,13 @@ db.init_app(app)
 
 # Models
 class Athlete(db.Model):
-    """
-    Represents an individual athlete.  We store the athlete's name along with
-    their grade and gender so that rosters can be managed directly from within
-    the application.  Each athlete belongs to a team via a foreign key.  The
-    underlying SQLite database already contains `grade` and `gender` columns,
-    so we map them here as part of the ORM model.  If the columns are
-    missing from an existing deployment the application will still function
-    because SQLAlchemy will ignore unbound fields when reading from the DB.
-    """
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(100), nullable=False)
-    last_name = db.Column(db.String(100), nullable=False)
-    # Grade level (e.g. 9 for freshman).  Required in the roster form.
-    grade = db.Column(db.Integer, nullable=False)
-    # Gender of the athlete.  Required in the roster form.
-    gender = db.Column(db.String(50), nullable=False)
-    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    last_name  = db.Column(db.String(100), nullable=False)
+    grade      = db.Column(db.Integer, nullable=True)     # was False
+    gender     = db.Column(db.String(50), nullable=True)  # was False
+    team_id    = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+
 
 class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -262,29 +252,68 @@ def import_csv():
         f = TextIOWrapper(file.stream, encoding="utf-8", newline="")
         reader = csv.DictReader(f)
 
-        # Get existing teams so we can match team names from CSV
-        teams = {t.name: t for t in Team.query.all()}
+        # Cache teams by BOTH name and id for quick lookup
+        all_teams = Team.query.all()
+        teams_by_name = {t.name.strip(): t for t in all_teams if t.name}
+        teams_by_id = {int(t.id): t for t in all_teams}
 
         added = 0
+        skipped_missing_names = 0
+        skipped_unknown_team = 0
+
         for row in reader:
+            # --- Required names ---
             fn = (row.get("first_name") or "").strip()
             ln = (row.get("last_name") or "").strip()
-            team_name = (row.get("team_name") or "").strip()
-
             if not fn or not ln:
+                skipped_missing_names += 1
                 continue
 
-            team = teams.get(team_name)
-            team_id = team.id if team else None
+            # --- Team: accept team_name OR team_id (numeric or string) ---
+            team_val = (row.get("team_name") or row.get("team_id") or "").strip()
+            team = None
+            if team_val:
+                # If numeric → treat as ID; else treat as name
+                if team_val.isdigit():
+                    team = teams_by_id.get(int(team_val))
+                else:
+                    team = teams_by_name.get(team_val)
 
-            db.session.add(Athlete(first_name=fn, last_name=ln, team_id=team_id))
+            team_id = team.id if team else None
+            if team_val and not team:
+                # They provided a team value but it didn't match anything
+                skipped_unknown_team += 1
+
+            # --- Optional fields: grade/gender ---
+            grade_raw = (row.get("grade") or "").strip()
+            try:
+                grade = int(grade_raw) if grade_raw != "" else None
+            except ValueError:
+                grade = None
+
+            gender = (row.get("gender") or "").strip() or None
+
+            # --- Create row ---
+            db.session.add(Athlete(
+                first_name=fn,
+                last_name=ln,
+                grade=grade,
+                gender=gender,
+                team_id=team_id
+            ))
             added += 1
 
         db.session.commit()
-        flash(f"Imported {added} athletes.", "success")
-        return redirect(url_for("home"))
 
-    return render_template("import_csv.html")
+        msg = [f"Imported {added} athletes."]
+        if skipped_missing_names:
+            msg.append(f"Skipped {skipped_missing_names} (missing first/last name).")
+        if skipped_unknown_team:
+            msg.append(f"{skipped_unknown_team} had unknown team (name/ID didn’t match existing teams).")
+
+        flash(" ".join(msg), "success")
+        return
+
 
 
 @app.route("/flagged_athletes")
@@ -569,12 +598,11 @@ else:
     with app.app_context():
         try:
             db.create_all()
+            ensure_athlete_columns()   # <-- add this line
             print("✅ Tables created")
             seed_default_coach()
             seed_teams()
         except Exception as e:
             print(f"❌ Error during db.create_all(): {e}")
 
-
-            
 
