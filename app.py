@@ -11,7 +11,8 @@ import os
 from sqlalchemy import func
 
 app = Flask(__name__)
-app.secret_key = 'boomer'
+app.secret_key = os.getenv("SECRET_KEY") or os.urandom(24)
+
 
 # Database configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL", "sqlite:///test_local.db")
@@ -550,22 +551,6 @@ def seed_teams():
         db.session.commit()
         return "✅ Teams seeded!"
     return "⚠️ Teams already exist."
-
-@app.route("/nuke")
-def nuke():
-    db.drop_all()
-    db.create_all()
-    return "💣 Database nuked and recreated."
-
-@app.get("/admin/reset_db")
-def reset_db():
-    from flask import abort
-    # add a simple guard here if you want
-    with app.app_context():
-        db.drop_all()
-        db.create_all()
-    return "DB reset"
-
 
 
 def seed_default_coach():
