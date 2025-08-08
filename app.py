@@ -560,6 +560,7 @@ def seed_teams():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+        ensure_athlete_columns()
         print("✅ Tables created")
         seed_default_coach()
         seed_teams()
