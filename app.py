@@ -71,6 +71,35 @@ class Coach(UserMixin, db.Model):
     password = db.Column(db.String(255), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
 
+
+
+from sqlalchemy import inspect, text
+
+def ensure_athlete_columns():
+    insp = inspect(db.engine)
+    try:
+        cols = {c['name'] for c in insp.get_columns('athlete')}
+    except Exception as e:
+        print("Could not inspect 'athlete' table:", e)
+        return
+
+    stmts = []
+    if 'grade' not in cols:
+        stmts.append("ALTER TABLE athlete ADD COLUMN IF NOT EXISTS grade INTEGER")
+    if 'gender' not in cols:
+        stmts.append("ALTER TABLE athlete ADD COLUMN IF NOT EXISTS gender VARCHAR(20)")
+
+    if not stmts:
+        print("Athlete table already has needed columns.")
+        return
+
+    with db.engine.begin() as conn:
+        for s in stmts:
+            print("Running:", s)
+            conn.execute(text(s))
+    print("Athlete columns ensured.")
+
+
 # Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
