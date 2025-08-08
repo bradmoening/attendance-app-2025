@@ -6,10 +6,24 @@
 </head>
 <body>
   <h1>Import Athlete Roster CSV</h1>
+
+  <!-- Flash messages -->
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% if msgs %}
+      <ul>
+        {% for category, msg in msgs %}
+          <li><strong>{{ category.title() }}:</strong> {{ msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
   <form method="post" enctype="multipart/form-data">
-    <input type="file" name="file" required>
+    <input type="file" name="file" accept=".csv,text/csv" required>
     <button type="submit">Upload</button>
   </form>
+
+  <p>Expected headers: <code>first_name,last_name,team_name</code> (or <code>team_id</code>), optional: <code>grade,gender</code>.</p>
   <a href="{{ url_for('home') }}">← Back to Main</a>
 </body>
 </html>

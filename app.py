@@ -243,76 +243,79 @@ from io import TextIOWrapper
 @login_required
 def import_csv():
     if request.method == "POST":
-        file = request.files.get("file")
-        if not file:
-            flash("No file uploaded", "error")
-            return redirect(url_for("home"))
+        try:
+            file = request.files.get("file")
+            if not file or not getattr(file, "filename", ""):
+                flash("No file uploaded.", "error")
+                return redirect(url_for("import_csv"))
 
-        # Wrap file for CSV reader
-        f = TextIOWrapper(file.stream, encoding="utf-8", newline="")
-        reader = csv.DictReader(f)
+            # CSV parse
+            f = TextIOWrapper(file.stream, encoding="utf-8", newline="")
+            reader = csv.DictReader(f)
 
-        # Cache teams by BOTH name and id for quick lookup
-        all_teams = Team.query.all()
-        teams_by_name = {t.name.strip(): t for t in all_teams if t.name}
-        teams_by_id = {int(t.id): t for t in all_teams}
+            # Teams lookup (both by name and id)
+            all_teams = Team.query.all()
+            teams_by_name = {t.name.strip(): t for t in all_teams if t.name}
+            teams_by_id = {int(t.id): t for t in all_teams}
 
-        added = 0
-        skipped_missing_names = 0
-        skipped_unknown_team = 0
+            added = 0
+            skipped_missing_names = 0
+            skipped_unknown_team = 0
 
-        for row in reader:
-            # --- Required names ---
-            fn = (row.get("first_name") or "").strip()
-            ln = (row.get("last_name") or "").strip()
-            if not fn or not ln:
-                skipped_missing_names += 1
-                continue
+            for row in reader:
+                fn = (row.get("first_name") or "").strip()
+                ln = (row.get("last_name") or "").strip()
+                if not fn or not ln:
+                    skipped_missing_names += 1
+                    continue
 
-            # --- Team: accept team_name OR team_id (numeric or string) ---
-            team_val = (row.get("team_name") or row.get("team_id") or "").strip()
-            team = None
-            if team_val:
-                # If numeric → treat as ID; else treat as name
-                if team_val.isdigit():
-                    team = teams_by_id.get(int(team_val))
-                else:
-                    team = teams_by_name.get(team_val)
+                team_val = (row.get("team_name") or row.get("team_id") or "").strip()
+                team = None
+                if team_val:
+                    if team_val.isdigit():
+                        team = teams_by_id.get(int(team_val))
+                    else:
+                        team = teams_by_name.get(team_val)
+                team_id = team.id if team else None
+                if team_val and not team:
+                    skipped_unknown_team += 1
 
-            team_id = team.id if team else None
-            if team_val and not team:
-                # They provided a team value but it didn't match anything
-                skipped_unknown_team += 1
+                # Optional fields
+                grade_raw = (row.get("grade") or "").strip()
+                try:
+                    grade = int(grade_raw) if grade_raw != "" else None
+                except ValueError:
+                    grade = None
+                gender = (row.get("gender") or "").strip() or None
 
-            # --- Optional fields: grade/gender ---
-            grade_raw = (row.get("grade") or "").strip()
-            try:
-                grade = int(grade_raw) if grade_raw != "" else None
-            except ValueError:
-                grade = None
+                db.session.add(Athlete(
+                    first_name=fn,
+                    last_name=ln,
+                    grade=grade,
+                    gender=gender,
+                    team_id=team_id
+                ))
+                added += 1
 
-            gender = (row.get("gender") or "").strip() or None
+            db.session.commit()
 
-            # --- Create row ---
-            db.session.add(Athlete(
-                first_name=fn,
-                last_name=ln,
-                grade=grade,
-                gender=gender,
-                team_id=team_id
-            ))
-            added += 1
+            msg = [f"Imported {added} athletes."]
+            if skipped_missing_names:
+                msg.append(f"Skipped {skipped_missing_names} missing name(s).")
+            if skipped_unknown_team:
+                msg.append(f"{skipped_unknown_team} row(s) had unknown team.")
+            flash(" ".join(msg), "success")
+            return redirect(url_for("attendance"))
 
-        db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print("❌ CSV import failed:", e)
+            flash(f"Import failed: {e}", "error")
+            return redirect(url_for("import_csv"))
 
-        msg = [f"Imported {added} athletes."]
-        if skipped_missing_names:
-            msg.append(f"Skipped {skipped_missing_names} (missing first/last name).")
-        if skipped_unknown_team:
-            msg.append(f"{skipped_unknown_team} had unknown team (name/ID didn’t match existing teams).")
+    # >>> IMPORTANT: always return a response on GET <<<
+    return render_template("import_csv.html")
 
-        flash(" ".join(msg), "success")
-        return
 
 
 
