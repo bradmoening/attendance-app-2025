@@ -14,9 +14,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY") or os.urandom(24)
 
 
-# Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL", "sqlite:///test_local.db")
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 
 import os
 
