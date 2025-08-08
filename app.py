@@ -496,6 +496,16 @@ def nuke():
     db.create_all()
     return "💣 Database nuked and recreated."
 
+@app.get("/admin/reset_db")
+def reset_db():
+    from flask import abort
+    # add a simple guard here if you want
+    with app.app_context():
+        db.drop_all()
+        db.create_all()
+    return "DB reset"
+
+
 
 def seed_default_coach():
     from werkzeug.security import generate_password_hash
