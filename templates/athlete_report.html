@@ -5,41 +5,16 @@
   <title>Athlete Absence Report</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      font-family: sans-serif;
-      margin: 1rem;
+    body { font-family: sans-serif; margin: 1rem; }
+    h1, h2 { font-size: 1.5rem; }
+    label { font-size: 1.1rem; display: block; margin-bottom: 0.5rem; }
+    select, input[type="text"], button {
+      font-size: 1.05rem; padding: 0.5rem; width: 100%; max-width: 420px; margin-bottom: 0.8rem;
     }
-
-    h1, h2 {
-      font-size: 1.5rem;
-    }
-
-    label {
-      font-size: 1.1rem;
-      display: block;
-      margin-bottom: 0.5rem;
-    }
-
-    select {
-      font-size: 1.1rem;
-      padding: 0.5rem;
-      width: 100%;
-      max-width: 400px;
-      margin-bottom: 1rem;
-    }
-
-    ul {
-      padding-left: 1rem;
-    }
-
-    li {
-      margin-bottom: 0.5rem;
-      font-size: 1rem;
-    }
-
-    nav a {
-      font-size: 1rem;
-    }
+    ul { padding-left: 1rem; }
+    li { margin-bottom: 0.5rem; font-size: 1rem; }
+    nav a { font-size: 1rem; }
+    .filters { display: grid; gap: 8px; max-width: 860px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
   </style>
 </head>
 <body>
@@ -47,21 +22,38 @@
   <nav style="margin-bottom: 20px;">
     <a href="{{ url_for('home') }}">🏠 Main Page</a>
   </nav>
-
   <hr>
 
   <h1>Individual Athlete Absence Report</h1>
 
+  <!-- Athlete select posts (so onchange works); date range uses GET params to preserve deep links -->
   <form method="post">
     <label for="athlete_id">Select Athlete:</label>
     <select name="athlete_id" id="athlete_id" onchange="this.form.submit()">
       <option value="">-- Choose an athlete --</option>
-      {% for athlete in athletes %}
-        <option value="{{ athlete[0] }}" {% if athlete[0] == selected_id %}selected{% endif %}>
-          {{ athlete[1] }} {{ athlete[2] }}
+      {% for a in athletes %}
+        <option value="{{ a[0] }}" {% if a[0] == selected_id %}selected{% endif %}>
+          {{ a[1] }} {{ a[2] }}
         </option>
       {% endfor %}
     </select>
+  </form>
+
+  <form class="filters" method="get" style="margin-top:-6px;">
+    {% if selected_id %}
+      <input type="hidden" name="athlete_id" value="{{ selected_id }}">
+    {% endif %}
+    <label>
+      Since (YYYY-MM-DD)
+      <input type="text" name="since" placeholder="YYYY-MM-DD" value="{{ since or '' }}">
+    </label>
+    <label>
+      Until (YYYY-MM-DD)
+      <input type="text" name="until" placeholder="YYYY-MM-DD" value="{{ until or '' }}">
+    </label>
+    <div style="align-self:end;">
+      <button type="submit">Apply</button>
+    </div>
   </form>
 
   {% if absences %}
@@ -70,14 +62,12 @@
       {% for date, note in absences %}
         <li>
           {{ date }}
-          {% if note %}
-            – <em>Note: {{ note }}</em>
-          {% endif %}
+          {% if note %} – <em>Note: {{ note }}</em>{% endif %}
         </li>
       {% endfor %}
     </ul>
   {% elif selected_id %}
-    <p>No absences recorded for this athlete.</p>
+    <p>No absences recorded for this athlete{{ ' in the selected range' if since or until else '' }}.</p>
   {% endif %}
 
 </body>

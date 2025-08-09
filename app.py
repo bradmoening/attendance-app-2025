@@ -566,43 +566,52 @@ def manage_absences():
     )
 
 
-# Individual athlete absence report (read-only)
+from sqlalchemy import and_
+
 @app.route("/athlete_report", methods=["GET", "POST"])
 @login_required
 def athlete_report():
-    """
-    Show a historical list of absence dates and notes for a single athlete.
-    Coaches can select an athlete from the dropdown; upon selection the form
-    automatically submits and the page refreshes with that athlete's
-    absences displayed.  Unlike manage_absences, this route does not allow
-    deleting entries.
-    """
-    athletes = (
-        db.session.query(Athlete.id, Athlete.first_name, Athlete.last_name)
-        .order_by(Athlete.last_name, Athlete.first_name)
-        .all()
-    )
-    selected_id = request.form.get("athlete_id") or request.args.get("athlete_id")
+    # Pull selection from either POST (dropdown auto-submit) or GET (links)
+    selected_id = (request.form.get("athlete_id") or request.args.get("athlete_id") or "").strip() or None
+    try:
+        selected_id = int(selected_id) if selected_id else None
+    except (TypeError, ValueError):
+        selected_id = None
+
+    # Optional date range (ISO strings, matches your Attendance.date type)
+    since = (request.values.get("since") or "").strip()
+    until = (request.values.get("until") or "").strip()
+
+    # Limit athletes list to coach's team unless admin
+    if getattr(current_user, "username", "") == "admin":
+        athletes_q = db.session.query(Athlete.id, Athlete.first_name, Athlete.last_name)
+    else:
+        athletes_q = db.session.query(Athlete.id, Athlete.first_name, Athlete.last_name)\
+                               .filter(Athlete.team_id == current_user.team_id)
+
+    athletes = athletes_q.order_by(Athlete.last_name, Athlete.first_name).all()
+
+    # Build absences list for selected athlete
     absences = []
     if selected_id:
-        try:
-            sid = int(selected_id)
-            absences = (
-                db.session.query(Attendance.date, Attendance.notes)
-                .filter(
-                    Attendance.athlete_id == sid,
-                    Attendance.status == "Absent",
-                )
-                .order_by(Attendance.date.desc())
-                .all()
+        q = db.session.query(Attendance.date, Attendance.notes)\
+            .filter(
+                Attendance.athlete_id == selected_id,
+                Attendance.status == "Absent"
             )
-        except ValueError:
-            selected_id = None
+        if since:
+            q = q.filter(Attendance.date >= since)
+        if until:
+            q = q.filter(Attendance.date <= until)
+        absences = q.order_by(Attendance.date.desc()).all()
+
     return render_template(
         "athlete_report.html",
         athletes=athletes,
-        selected_id=int(selected_id) if selected_id else None,
+        selected_id=selected_id,
         absences=absences,
+        since=since,
+        until=until,
     )
 
 
