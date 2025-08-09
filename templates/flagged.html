@@ -1,63 +1,72 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Flagged Athletes</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    body {
-      font-family: sans-serif;
-      margin: 1rem;
-    }
-
-    h1 {
-      font-size: 1.5rem;
-    }
-
-    nav a {
-      font-size: 1rem;
-    }
-
-    ul {
-      padding-left: 1rem;
-    }
-
-    li {
-      margin-bottom: 1rem;
-      font-size: 1rem;
-      line-height: 1.4;
-    }
-
-    a {
-      color: #007bff;
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
+    body { font-family: sans-serif; margin: 1rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    form.filters { display: grid; gap: 8px; max-width: 640px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin: 10px 0 16px; }
+    label { font-size: 0.9rem; display: flex; flex-direction: column; gap: 4px; }
+    input, select, button { padding: 6px 8px; font-size: 0.95rem; }
+    ul { padding-left: 1rem; }
+    li { margin-bottom: 0.75rem; line-height: 1.4; }
+    .meta { color: #555; font-size: 0.9rem; }
   </style>
 </head>
 <body>
-  <nav style="margin-bottom: 20px;">
+  <nav style="margin-bottom: 12px;">
     <a href="{{ url_for('home') }}">🏠 Main Page</a>
   </nav>
-  <hr>
+  <hr />
 
-  <h1>Flagged Athletes (5+ Absences)</h1>
+  <h1>Flagged Athletes</h1>
+
+  <form class="filters" method="get">
+    <label>
+      Min absences
+      <input type="number" min="1" name="min_absences" value="{{ min_absences or 5 }}" />
+    </label>
+
+    <label>
+      Since (YYYY-MM-DD)
+      <input type="text" name="since" placeholder="YYYY-MM-DD" value="{{ since or '' }}" />
+    </label>
+
+    <label>
+      Until (YYYY-MM-DD)
+      <input type="text" name="until" placeholder="YYYY-MM-DD" value="{{ until or '' }}" />
+    </label>
+
+    <label>
+      Team
+      <select name="team_id">
+        <option value="">All teams</option>
+        {% for t in teams %}
+          <option value="{{ t.id }}" {% if selected_team_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div style="align-self:end;">
+      <button type="submit">Apply</button>
+    </div>
+  </form>
 
   {% if flagged %}
     <ul>
-      {% for athlete_id, first_name, last_name, count in flagged %}
+      {% for athlete_id, first_name, last_name, team_name, count in flagged %}
         <li>
-          <strong>{{ first_name }} {{ last_name }}</strong>: {{ count }} absences —
+          <strong>{{ first_name }} {{ last_name }}</strong>
+          <span class="meta">— {{ team_name or "No team" }}</span>
+          : {{ count }} absences —
           <a href="{{ url_for('athlete_report') }}?athlete_id={{ athlete_id }}">View Report</a>
         </li>
       {% endfor %}
     </ul>
   {% else %}
-    <p>No athletes with 5 or more absences. Keep up the good attendance!</p>
+    <p>No athletes meet the current filter. Nice work keeping kids at practice!</p>
   {% endif %}
-
 </body>
 </html>

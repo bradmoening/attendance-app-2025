@@ -367,41 +367,88 @@ def import_csv():
 
 
 
-@app.route("/flagged_athletes")
+from datetime import date
+from sqlalchemy import func, and_
+
+@app.route("/flagged_athletes", methods=["GET", "POST"])
 @login_required
 def flagged_athletes():
-    """
-    Display athletes who have accumulated five or more absences.
+    # ---- Inputs ----
+    # threshold: minimum absences to flag (default 5)
+    try:
+        min_abs = int(request.values.get("min_absences", 5))
+    except (TypeError, ValueError):
+        min_abs = 5
 
-    We aggregate attendance records by athlete and count the number of
-    "Absent" entries per athlete across all dates.  Only athletes with
-    five or more absences are returned.  The resulting list contains
-    tuples of (athlete_id, first_name, last_name, absence_count).
-    """
-    # Build a subquery counting absences per athlete
-    sub = (
+    # date filters (optional). You’re using string dates (ISO) in Attendance.date, so keep them as strings.
+    since = (request.values.get("since") or "").strip()  # "YYYY-MM-DD" or ""
+    until = (request.values.get("until") or "").strip()
+
+    # team filter: admin can pick; coaches default to their team
+    raw_team_id = request.values.get("team_id")
+    selected_team_id = None
+    try:
+        selected_team_id = int(raw_team_id) if raw_team_id else None
+    except (TypeError, ValueError):
+        selected_team_id = None
+
+    # If user has a team and no team explicitly chosen, default to it
+    if selected_team_id is None and getattr(current_user, "team_id", None):
+        selected_team_id = current_user.team_id
+
+    # ---- Query ----
+    q = (
         db.session.query(
-            Attendance.athlete_id,
-            func.count(Attendance.id).label("absence_count")
+            Attendance.athlete_id.label("athlete_id"),
+            func.count(Attendance.id).label("absence_count"),
         )
+        .join(Athlete, Athlete.id == Attendance.athlete_id)
         .filter(Attendance.status == "Absent")
         .group_by(Attendance.athlete_id)
-        .having(func.count(Attendance.id) >= 5)
-        .subquery()
+        .having(func.count(Attendance.id) >= min_abs)
     )
-    # Join with the Athlete table to get names
+
+    # Apply optional filters
+    if selected_team_id:
+        q = q.filter(Athlete.team_id == selected_team_id)
+    if since:
+        q = q.filter(Attendance.date >= since)
+    if until:
+        q = q.filter(Attendance.date <= until)
+
+    sub = q.subquery()
+
+    # Join to get names + team
     flagged = (
         db.session.query(
             Athlete.id,
             Athlete.first_name,
             Athlete.last_name,
+            Team.name.label("team_name"),
             sub.c.absence_count,
         )
         .join(sub, Athlete.id == sub.c.athlete_id)
-        .order_by(sub.c.absence_count.desc())
+        .join(Team, Team.id == Athlete.team_id, isouter=True)
+        .order_by(sub.c.absence_count.desc(), Athlete.last_name, Athlete.first_name)
         .all()
     )
-    return render_template("flagged.html", flagged=flagged)
+
+    # Teams list for dropdown (admin sees all; coaches see theirs)
+    if getattr(current_user, "username", "") == "admin":
+        teams = Team.query.order_by(Team.name).all()
+    else:
+        teams = Team.query.filter(Team.id == current_user.team_id).all()
+
+    return render_template(
+        "flagged.html",
+        flagged=flagged,
+        teams=teams,
+        selected_team_id=selected_team_id,
+        min_absences=min_abs,
+        since=since,
+        until=until,
+    )
+
 
 @app.route("/manage_roster", methods=["GET", "POST"])
 @login_required
