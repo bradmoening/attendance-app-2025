@@ -7,37 +7,36 @@
   <style>
     body { font-family: sans-serif; margin: 1rem; }
     h1, h2 { font-size: 1.3rem; }
-    form { margin-bottom: 1.5rem; }
+    form { margin-bottom: 1.2rem; }
     label { display: block; margin-top: 10px; }
     input[type="text"], input[type="number"], select {
       width: 100%; padding: 8px; font-size: 1rem; margin-top: 4px;
       border-radius: 4px; border: 1px solid #ccc;
     }
-    .btn, input[type="submit"], button {
-      margin-top: 12px; padding: 10px 16px; font-size: 1rem; border: none;
-      border-radius: 5px; background-color: #007bff; color: white; cursor: pointer;
-    }
-    .btn:hover, input[type="submit"]:hover, button:hover { background-color: #0056b3; }
-    .btn-danger { background:#c62828; } .btn-danger:hover { background:#b71c1c; }
-    ul { padding-left: 0; list-style-type: none; }
-    li { margin-bottom: 10px; font-size: 1rem; display:flex; align-items:center; justify-content:space-between; }
-    form.inline { display: inline; }
-    nav a { font-size: 1rem; }
+    .btn { margin-top: 10px; padding: 8px 14px; font-size: 0.95rem; border: none; border-radius: 5px; color: #fff; cursor: pointer; }
+    .btn-primary { background: #007bff; } .btn-primary:hover { background: #0056b3; }
+    .btn-danger { background: #c62828; } .btn-danger:hover { background: #b71c1c; }
+    .btn-ghost { background: #888; } .btn-ghost:hover { background: #666; }
     .flash { padding:.6rem .8rem; border-radius:6px; margin:.6rem 0; }
     .flash.error { background:#fdecea; color:#611a15; }
     .flash.success { background:#e6f4ea; color:#0f5132; }
-    .row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-    .muted { color:#666; font-size:.95rem; }
-    .warn { color:#8a6d3b; background:#fcf8e3; border:1px solid #faebcc;
-            padding:6px 8px; border-radius:6px; display:none; margin-top:8px; }
-    .toolbar { display:flex; gap:8px; align-items:center; margin:10px 0; }
-    .toolbar input[type="text"] { max-width: 360px; }
-    .list { margin-top:.5rem; }
-    .name { flex: 1 1 auto; }
+
+    .toolbar { margin: 8px 0 14px; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items:center; }
+    .toolbar input[type="text"] { width: 100%; max-width: none; }
+    .toolbar .right { text-align: right; }
+    .toolbar .right a { text-decoration:none; }
+
+    ul { list-style: none; padding-left: 0; margin: 0; }
+    li.item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .meta { color:#666; font-size:.95rem; }
+    .actions { display:flex; gap:6px; }
+
+    .edit-row { background:#f8f9fa; padding:10px; border-radius:6px; margin-top:6px; }
+    .edit-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; }
   </style>
 </head>
 <body>
-  <nav style="margin-bottom: 20px;">
+  <nav style="margin-bottom: 12px;">
     <a href="{{ url_for('home') }}">🏠 Main Page</a>
   </nav>
   <hr>
@@ -54,66 +53,111 @@
   <h1>Roster Management</h1>
 
   <h2>Add Athlete</h2>
-  <form method="post" action="{{ url_for('manage_roster') }}" id="addForm">
+  <form method="post" action="{{ url_for('manage_roster') }}">
     <input type="hidden" name="action" value="add">
 
-    <label for="first_name">First Name:</label>
-    <input type="text" name="first_name" id="first_name" required>
+    <label>First Name
+      <input type="text" name="first_name" required>
+    </label>
 
-    <label for="last_name">Last Name:</label>
-    <input type="text" name="last_name" id="last_name" required>
+    <label>Last Name
+      <input type="text" name="last_name" required>
+    </label>
 
-    <div class="row">
-      <div>
-        <label for="grade">Grade:</label>
-        <input type="number" name="grade" id="grade" min="7" max="12" required>
-      </div>
-      <div>
-        <label for="gender">Gender:</label>
-        <select name="gender" id="gender" required>
+    <div class="edit-grid">
+      <label>Grade
+        <input type="number" name="grade" min="7" max="12" required>
+      </label>
+
+      <label>Gender
+        <select name="gender" required>
           <option value="">--Select--</option>
           <option>Male</option>
           <option>Female</option>
           <option>Other</option>
         </select>
-      </div>
+      </label>
+
+      <label>Team
+        <select name="team_id">
+          {% for team in teams %}
+            <option value="{{ team[0] }}"
+              {% if current_user and current_user.team_id and team[0]==current_user.team_id %}selected{% endif %}>
+              {{ team[1] }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
     </div>
 
-    <label for="team_id">Team:</label>
-    <select name="team_id" id="team_id">
-      {% for team in teams %}
-        <option value="{{ team[0] }}"
-          {% if current_user and current_user.team_id and team[0]==current_user.team_id %}selected{% endif %}>
-          {{ team[1] }}
-        </option>
-      {% endfor %}
-    </select>
-
-    <!-- Client-side duplicate heads-up -->
-    <div id="dupeWarn" class="warn">Possible duplicate: that name already exists.</div>
-
-    <input type="submit" value="Add Athlete" class="btn">
+    <button type="submit" class="btn btn-primary">Add Athlete</button>
   </form>
 
   <h2>Current Athletes</h2>
 
   <div class="toolbar">
-    <input type="text" id="filter" placeholder="Filter by name or team…">
-    <a class="btn" href="{{ url_for('import_csv') }}">Import CSV</a>
+    <input id="filter" type="text" placeholder="Filter by name or team…">
+    <div class="right">
+      <a class="btn btn-primary" href="{{ url_for('import_csv') }}">Import CSV</a>
+    </div>
   </div>
 
-  <ul id="list" class="list">
-    {% for athlete in athletes %}
-      <li data-name="{{ (athlete[1] ~ ' ' ~ athlete[2])|lower }}" data-team="{{ athlete[3]|lower if athlete[3] }}">
-        <span class="name">
-          {{ athlete[1] }} {{ athlete[2] }} <span class="muted">— {{ athlete[3] or 'No team' }}</span>
-        </span>
-        <form method="post" action="{{ url_for('manage_roster') }}" class="inline"
-              onsubmit="return confirm('Remove {{ athlete[1] }} {{ athlete[2] }} from the roster?');">
-          <input type="hidden" name="action" value="delete">
-          <input type="hidden" name="athlete_id" value="{{ athlete[0] }}">
-          <button type="submit" class="btn btn-danger">Remove</button>
-        </form>
+  <ul id="list">
+    {% for a in athletes %}
+      {# a = (id, first, last, grade, gender, team_id, team_name) #}
+      <li class="item" data-name="{{ (a[1] ~ ' ' ~ a[2])|lower }}" data-team="{{ (a[6] or 'no team')|lower }}">
+        <div>
+          <div><strong>{{ a[1] }} {{ a[2] }}</strong> <span class="meta">— {{ a[6] or 'No team' }}, Grade {{ a[3] or '—' }}</span></div>
+
+          <!-- Inline edit form (hidden by default) -->
+          <div id="edit-{{ a[0] }}" class="edit-row" style="display:none;">
+            <form method="post" action="{{ url_for('manage_roster') }}">
+              <input type="hidden" name="action" value="edit">
+              <input type="hidden" name="athlete_id" value="{{ a[0] }}">
+
+              <div class="edit-grid">
+                <label>First Name
+                  <input type="text" name="first_name" value="{{ a[1] }}" required>
+                </label>
+                <label>Last Name
+                  <input type="text" name="last_name" value="{{ a[2] }}" required>
+                </label>
+                <label>Grade
+                  <input type="number" name="grade" value="{{ a[3] or '' }}" min="7" max="12" required>
+                </label>
+                <label>Gender
+                  <select name="gender" required>
+                    <option value="">--Select--</option>
+                    <option {% if a[4]=='Male' %}selected{% endif %}>Male</option>
+                    <option {% if a[4]=='Female' %}selected{% endif %}>Female</option>
+                    <option {% if a[4]=='Other' %}selected{% endif %}>Other</option>
+                  </select>
+                </label>
+                <label>Team
+                  <select name="team_id">
+                    {% for team in teams %}
+                      <option value="{{ team[0] }}" {% if a[5]==team[0] %}selected{% endif %}>{{ team[1] }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              </div>
+
+              <div style="margin-top:8px; display:flex; gap:8px;">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-ghost" onclick="toggleEdit({{ a[0] }}, false)">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" type="button" onclick="toggleEdit({{ a[0] }}, true)">Edit</button>
+          <form method="post" action="{{ url_for('manage_roster') }}" onsubmit="return confirm('Remove {{ a[1] }} {{ a[2] }} from the roster?');">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="athlete_id" value="{{ a[0] }}">
+            <button type="submit" class="btn btn-danger">Remove</button>
+          </form>
+        </div>
       </li>
     {% endfor %}
   </ul>
@@ -121,38 +165,22 @@
   <p><a href="{{ url_for('home') }}">Back to Main Page</a></p>
 
   <script>
-    // Live filter by name or team
+    // Live filter
     const filter = document.getElementById('filter');
     const list = document.getElementById('list');
     filter.addEventListener('input', () => {
       const q = filter.value.trim().toLowerCase();
-      for (const li of list.querySelectorAll('li')) {
-        const hay = (li.dataset.name + ' ' + (li.dataset.team || '')).toLowerCase();
+      for (const li of list.querySelectorAll('li.item')) {
+        const hay = (li.dataset.name + ' ' + li.dataset.team).toLowerCase();
         li.style.display = hay.includes(q) ? '' : 'none';
       }
     });
 
-    // Client-side duplicate warning (first+last, case-insensitive)
-    const addForm = document.getElementById('addForm');
-    const dupeWarn = document.getElementById('dupeWarn');
-    const first = document.getElementById('first_name');
-    const last = document.getElementById('last_name');
-
-    function checkDupe() {
-      const target = (first.value + ' ' + last.value).trim().toLowerCase();
-      let hit = false;
-      for (const li of list.querySelectorAll('li')) {
-        if (li.dataset.name === target) { hit = true; break; }
-      }
-      dupeWarn.style.display = hit ? 'block' : 'none';
-      return !hit; // return false to block submit if you want hard-stop
+    // Toggle edit panel
+    function toggleEdit(id, open) {
+      const row = document.getElementById('edit-' + id);
+      if (row) row.style.display = open ? '' : 'none';
     }
-
-    first.addEventListener('input', checkDupe);
-    last.addEventListener('input', checkDupe);
-
-    // Soft-warn by default; change to hard-stop by uncommenting:
-    // addForm.addEventListener('submit', (e) => { if (!checkDupe()) { e.preventDefault(); } });
   </script>
 </body>
 </html>

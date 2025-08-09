@@ -557,8 +557,8 @@ def flagged_athletes():
         until=until,
     )
 
-
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 @app.route("/manage_roster", methods=["GET", "POST"])
 @login_required
@@ -568,16 +568,19 @@ def manage_roster():
 
         if action == "add":
             first_name = (request.form.get("first_name") or "").strip()
-            last_name  = (request.form.get("last_name") or "").strip()
+            last_name  = (request.form.get("last_name")  or "").strip()
             grade      = request.form.get("grade")
             gender     = request.form.get("gender")
             team_id    = request.form.get("team_id") or None
 
-            # Normalize
+            if not first_name or not last_name:
+                flash("First and last name are required.", "error")
+                return redirect(url_for("manage_roster"))
+
             team_id_int = int(team_id) if team_id else None
             grade_int = int(grade) if grade else None
 
-            # HARD DEDUPE: case-insensitive name match within the same team
+            # case-insensitive, per-team dedupe
             exists = (
                 db.session.query(Athlete.id)
                 .filter(
@@ -592,25 +595,81 @@ def manage_roster():
                 return redirect(url_for("manage_roster"))
 
             try:
-                athlete = Athlete(
+                db.session.add(Athlete(
                     first_name=first_name,
                     last_name=last_name,
                     grade=grade_int,
                     gender=gender,
                     team_id=team_id_int
-                )
-                db.session.add(athlete)
+                ))
                 db.session.commit()
                 flash(f"Added athlete {first_name} {last_name}.", "success")
+            except IntegrityError:
+                db.session.rollback()
+                flash("Duplicate detected by database constraint.", "error")
             except Exception as e:
                 db.session.rollback()
                 flash(f"Error adding athlete: {e}", "error")
+
+        elif action == "edit":
+            athlete_id = request.form.get("athlete_id")
+            if not athlete_id:
+                flash("Missing athlete_id.", "error")
+                return redirect(url_for("manage_roster"))
+
+            first_name = (request.form.get("first_name") or "").strip()
+            last_name  = (request.form.get("last_name")  or "").strip()
+            grade      = request.form.get("grade")
+            gender     = request.form.get("gender")
+            team_id    = request.form.get("team_id") or None
+
+            if not first_name or not last_name:
+                flash("First and last name are required.", "error")
+                return redirect(url_for("manage_roster"))
+
+            try:
+                athlete = Athlete.query.get(int(athlete_id))
+                if not athlete:
+                    flash("Athlete not found.", "error")
+                    return redirect(url_for("manage_roster"))
+
+                team_id_int  = int(team_id) if team_id else None
+                grade_int    = int(grade) if grade else None
+
+                # dedupe check, excluding self
+                exists = (
+                    db.session.query(Athlete.id)
+                    .filter(
+                        func.lower(Athlete.first_name) == first_name.lower(),
+                        func.lower(Athlete.last_name)  == last_name.lower(),
+                        Athlete.team_id == team_id_int,
+                        Athlete.id != athlete.id
+                    )
+                    .first()
+                )
+                if exists:
+                    flash(f"Edit blocked: {first_name} {last_name} already on this team.", "error")
+                    return redirect(url_for("manage_roster"))
+
+                athlete.first_name = first_name
+                athlete.last_name  = last_name
+                athlete.grade      = grade_int
+                athlete.gender     = gender
+                athlete.team_id    = team_id_int
+
+                db.session.commit()
+                flash("Athlete updated.", "success")
+            except IntegrityError:
+                db.session.rollback()
+                flash("Duplicate detected by database constraint.", "error")
+            except Exception as e:
+                db.session.rollback()
+                flash(f"Error updating athlete: {e}", "error")
 
         elif action == "delete":
             athlete_id = request.form.get("athlete_id")
             if athlete_id:
                 try:
-                    # Remove attendance first (FK hygiene), then athlete
                     Attendance.query.filter_by(athlete_id=athlete_id).delete()
                     Athlete.query.filter_by(id=athlete_id).delete()
                     db.session.commit()
@@ -621,13 +680,16 @@ def manage_roster():
 
         return redirect(url_for("manage_roster"))
 
-    # GET: return athletes + teams for the template
+    # GET
     athletes = (
         db.session.query(
-            Athlete.id,
-            Athlete.first_name,
-            Athlete.last_name,
-            Team.name.label("team_name"),
+            Athlete.id,        # 0
+            Athlete.first_name,# 1
+            Athlete.last_name, # 2
+            Athlete.grade,     # 3
+            Athlete.gender,    # 4
+            Athlete.team_id,   # 5
+            Team.name.label("team_name"), # 6
         )
         .join(Team, Team.id == Athlete.team_id, isouter=True)
         .order_by(Athlete.last_name, Athlete.first_name)
