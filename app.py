@@ -113,7 +113,11 @@ login_manager.login_view = 'login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    return Coach.query.get(int(user_id))
+    try:
+        return db.session.get(Coach, int(user_id))
+    except (TypeError, ValueError):
+        return None
+
 
 # Routes
 @app.route("/")
@@ -144,7 +148,6 @@ def logout():
 @app.route("/attendance", methods=["GET", "POST"])
 @login_required
 def attendance():
-    # Use ISO string to match your DB column type
     today = datetime.date.today().isoformat()
 
     # Get team_id from querystring or form; normalize to int or None
@@ -159,7 +162,6 @@ def attendance():
         athlete_id = request.form.get("athlete_id")
         note = (request.form.get("note") or "").strip()
         if athlete_id:
-            # Make sure athlete_id is an int; ignore if garbage
             try:
                 aid = int(athlete_id)
             except (TypeError, ValueError):
@@ -181,6 +183,22 @@ def attendance():
 
         # PRG: keep the current team filter after submit
         return redirect(url_for("attendance", team_id=selected_team_id))
+
+    # ===== NEW: auto-create Present rows on GET =====
+    q = Athlete.query
+    if selected_team_id:
+        q = q.filter_by(team_id=selected_team_id)
+    for athlete in q.all():
+        exists = Attendance.query.filter_by(athlete_id=athlete.id, date=today).first()
+        if not exists:
+            db.session.add(Attendance(
+                athlete_id=athlete.id,
+                date=today,
+                status="Present",
+                notes=None
+            ))
+    db.session.commit()
+    # ================================================
 
     # GET: fetch athletes (filtered if team selected)
     if selected_team_id:
