@@ -6,6 +6,9 @@ from io import TextIOWrapper
 import csv
 import datetime
 import os
+import pytz
+from datetime import datetime
+
 
 # SQLAlchemy aggregation helper
 from sqlalchemy import func
@@ -184,7 +187,9 @@ def logout():
 @app.route("/attendance", methods=["GET", "POST"])
 @login_required
 def attendance():
-    today = datetime.date.today().isoformat()
+    central = pytz.timezone("America/Chicago")
+    today = datetime.now(central).date().isoformat()
+
 
     # Get team_id from querystring or form; normalize to int or None
     raw_team_id = request.args.get("team_id") or request.form.get("team_id")
