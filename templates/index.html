@@ -1,92 +1,92 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Attendance Tracker</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            font-family: sans-serif;
-            margin: 20px;
-            padding: 0;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-            background-color: #fafafa;
-            color: #222;
-        }
+  <meta charset="UTF-8" />
+  <title>Attendance Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --red: #c62828;
+      --red-hover: #b71c1c;
+      --light: #f0f0f0;
+      --text: #333;
+    }
+    body {
+      font-family: sans-serif;
+      margin: 20px auto;
+      max-width: 640px;
+      color: #222;
+      background: #fafafa;
+    }
+    h1 {
+      font-size: 1.9rem;
+      text-align: center;
+      margin: 10px 0 18px;
+    }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { margin: 8px 0; }
+    /* Main button */
+    a.button {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: var(--red);
+      color: #fff;
+      text-decoration: none;
+      font-size: 1.15rem;
+      font-weight: 700;
+      padding: 12px 0;
+      border-radius: 6px;
+      box-shadow: 2px 2px 8px rgba(0,0,0,.12);
+      transition: background .15s ease;
+    }
+    a.button:hover { background: var(--red-hover); }
 
-        h1 {
-            font-size: 1.8em;
-            text-align: center;
-        }
+    /* Sub-buttons (grouped under a main button) */
+    .sublist {
+      margin-top: 6px;
+      margin-left: 0; /* keep aligned; change to 16px if you want indentation */
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    a.subbutton {
+      display: block;
+      text-align: center;
+      background: #d84343;       /* slightly lighter red to read as a sub-action */
+      color: #fff;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 9px 0;
+      border-radius: 6px;
+      box-shadow: 1px 1px 6px rgba(0,0,0,.10);
+      transition: background .15s ease;
+    }
+    a.subbutton:hover { background: #cc3b3b; }
 
-        ul {
-            list-style-type: none;
-            padding: 0;
-        }
-
-        li {
-            margin: 5px 0;
-            padding: 1px 0;
-            background-color: #f0f0f0;
-            border-radius: 6px;
-            text-align: center;
-        }
-
-        li a {
-            text-decoration: none;
-            font-size: 1.1em;
-            color: #333;
-            display: block;
-        }
-
-        li a:hover {
-            color: #007BFF;
-        }
-
-        hr {
-            margin-top: 30px;
-        }
-
-        a.button {
-            display: block;
-            background-color: #c62828;
-            color: white;
-            text-decoration: none;
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin: 10px auto;
-            padding: 10px 0;
-            border-radius: 4px;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.15);
-            transition: background-color 0.2s ease;
-        }
-
-        a.button:hover {
-            background-color: #b71c1c;
-        }
-    </style>
+    hr { margin: 28px 0 6px; border: none; border-top: 1px solid #ddd; }
+  </style>
 </head>
 <body>
-    <h1>HP XC Attendance</h1>
+  <h1>HP XC Attendance</h1>
 
-    <ul>
-        <li><a class="button" href="{{ url_for('attendance') }}">Take Attendance</a></li>
-        <li><a class="button" href="{{ url_for('history') }}">View Attendance History</a></li>
-        <li style="margin-left: 20px; background-color: #e8e8e8;">
-            <a href="{{ url_for('athlete_report') }}" style="font-size: 1em; padding: 6px 0;">
-                📄 Athlete Absence Report
-            </a>
-        </li>
-        <li><a class="button" href="{{ url_for('flagged_athletes') }}">Flagged Athletes</a></li>
-        <li><a class="button" href="{{ url_for('add_coach') }}">Add Coach</a></li>
-        <li><a class="button" href="{{ url_for('logout') }}">Logout</a></li>
-        <li><a class="button" href="{{ url_for('import_csv') }}">Import Roster (CSV)</a></li>
-    </ul>
+  <ul>
+    <li><a class="button" href="{{ url_for('attendance') }}">Take Attendance</a></li>
 
-    <hr>
+    <li>
+      <a class="button" href="{{ url_for('history') }}">View Attendance History</a>
+      <div class="sublist">
+        <a class="subbutton" href="{{ url_for('athlete_report') }}">Athlete Absence Report</a>
+        <a class="subbutton" href="{{ url_for('flagged_athletes') }}">Flagged Athletes</a>
+      </div>
+    </li>
+
+    <li><a class="button" href="{{ url_for('import_csv') }}">Import Roster (CSV)</a></li>
+    <li><a class="button" href="{{ url_for('add_coach') }}">Add Coach</a></li>
+    <li><a class="button" href="{{ url_for('logout') }}">Logout</a></li>
+  </ul>
+
+  <hr>
 </body>
 </html>
