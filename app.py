@@ -181,10 +181,10 @@ def attendance():
                     ))
                 db.session.commit()
 
-        # PRG: keep the current team filter after submit
+        # Keep current team filter after submit
         return redirect(url_for("attendance", team_id=selected_team_id))
 
-    # ===== NEW: auto-create Present rows on GET =====
+    # ===== Auto-create Present rows on GET so green = saved in DB =====
     q = Athlete.query
     if selected_team_id:
         q = q.filter_by(team_id=selected_team_id)
@@ -198,7 +198,7 @@ def attendance():
                 notes=None
             ))
     db.session.commit()
-    # ================================================
+    # =================================================================
 
     # GET: fetch athletes (filtered if team selected)
     if selected_team_id:
@@ -211,14 +211,24 @@ def attendance():
                     .order_by(Athlete.last_name, Athlete.first_name)
                     .all())
 
-    # Attendance & notes for today
-    today_records = Attendance.query.filter_by(date=today).all()
+    # Attendance & notes for today (TEAM-FILTER AWARE)
+    # Only pull records for the selected team (or all teams if no filter)
+    today_records = (
+        Attendance.query
+        .join(Athlete, Attendance.athlete_id == Athlete.id)
+        .filter(
+            Attendance.date == today,
+            (Athlete.team_id == selected_team_id) if selected_team_id else True
+        )
+        .all()
+    )
     attendance_data = {r.athlete_id: r.status for r in today_records}
     notes_data = {r.athlete_id: r.notes for r in today_records}
 
     present_count = sum(1 for s in attendance_data.values() if s == "Present")
     absent_count = sum(1 for s in attendance_data.values() if s == "Absent")
-    unmarked_count = max(0, len(athletes) - (present_count + absent_count))
+    # Unmarked = athletes shown minus number of records for those athletes
+    unmarked_count = max(0, len(athletes) - len(attendance_data))
 
     teams = Team.query.order_by(Team.name).all()
 
