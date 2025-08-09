@@ -564,50 +564,71 @@ def manage_roster():
 @app.route("/manage_absences", methods=["GET", "POST"])
 @login_required
 def manage_absences():
-    """
-    Provide a simple interface to view all absence records for a given athlete
-    and optionally delete specific entries.  The form posts back to the
-    same route whenever the user selects an athlete from the dropdown or
-    clicks a delete button.  If a `delete_id` is provided, that absence
-    record is removed from the database.  After any mutation the page
-    reloads to show the updated list.
-    """
-    # List of all athletes for the dropdown
+    # Show ALL athletes to all coaches (no team gating)
     athletes = (
         db.session.query(Athlete.id, Athlete.first_name, Athlete.last_name)
         .order_by(Athlete.last_name, Athlete.first_name)
         .all()
     )
+
     selected_id = request.form.get("athlete_id") or request.args.get("athlete_id")
     delete_id = request.form.get("delete_id")
-    # Handle deletion of a specific absence entry
+
+    # Optional add-absence inputs
+    add_date = (request.form.get("add_date") or "").strip()
+    add_note = (request.form.get("add_note") or "").strip()
+    action = request.form.get("action")
+
+    # Normalize selected athlete id
+    try:
+        sid = int(selected_id) if selected_id else None
+    except ValueError:
+        sid = None
+
+    # Handle deletion (only delete Absent rows)
     if delete_id:
         try:
-            Attendance.query.filter_by(id=delete_id).delete()
+            Attendance.query.filter_by(id=delete_id, status="Absent").delete()
             db.session.commit()
         except Exception:
             db.session.rollback()
-    absences = []
-    if selected_id:
+
+    # Handle add (mark a date as Absent, upserting if a Present exists)
+    if action == "add_absence" and sid and add_date:
         try:
-            sid = int(selected_id)
-            absences = (
-                db.session.query(Attendance.id, Attendance.date, Attendance.notes)
-                .filter(
-                    Attendance.athlete_id == sid,
-                    Attendance.status == "Absent",
-                )
-                .order_by(Attendance.date.desc())
-                .all()
-            )
-        except ValueError:
-            selected_id = None
+            rec = Attendance.query.filter_by(athlete_id=sid, date=add_date).first()
+            if rec:
+                rec.status = "Absent"
+                if add_note:
+                    rec.notes = add_note
+            else:
+                db.session.add(Attendance(
+                    athlete_id=sid,
+                    date=add_date,
+                    status="Absent",
+                    notes=add_note or None
+                ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    # Load existing absences for selected athlete
+    absences = []
+    if sid:
+        absences = (
+            db.session.query(Attendance.id, Attendance.date, Attendance.notes)
+            .filter(Attendance.athlete_id == sid, Attendance.status == "Absent")
+            .order_by(Attendance.date.desc())
+            .all()
+        )
+
     return render_template(
         "manage_absences.html",
         athletes=athletes,
-        selected_id=int(selected_id) if selected_id else None,
+        selected_id=sid,
         absences=absences,
     )
+
 
 
 from sqlalchemy import and_
