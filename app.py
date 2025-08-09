@@ -10,6 +10,23 @@ import os
 # SQLAlchemy aggregation helper
 from sqlalchemy import func
 
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from flask import current_app
+
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from flask import current_app
+
+
+def get_serializer():
+    # uses your existing SECRET_KEY
+    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
+
+
+def get_serializer():
+    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
+
+
+
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY") or os.urandom(24)
 
@@ -63,6 +80,7 @@ class Coach(UserMixin, db.Model):
     username = db.Column(db.String(100), nullable=False, unique=True)
     password = db.Column(db.String(255), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    email = db.Column(db.String(120), unique=True, nullable=True)
 
 
 
@@ -327,6 +345,79 @@ def history():
         absent_count=absent_count,
         unmarked_count=unmarked_count,
     )
+
+@app.route("/forgot", methods=["GET", "POST"])
+def forgot():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        user = Coach.query.filter_by(username=username).first()
+
+        # Always respond the same (don’t leak which usernames exist)
+        if not user:
+            flash("If that user exists, we sent a reset link.", "success")
+            return redirect(url_for("login"))
+
+        s = get_serializer()
+        token = s.dumps({"uid": user.id})
+        reset_url = url_for("reset_password_token", token=token, _external=True)
+
+        # Try email if you wired it; otherwise log to console/Render logs
+        try:
+            from app import send_email_via_sendgrid  # if you added the helper earlier
+            ok, err = send_email_via_sendgrid(
+                getattr(user, "email", None),
+                "HP XC Password Reset",
+                f"Click to reset your password: <a href='{reset_url}'>{reset_url}</a>"
+            )
+        except Exception:
+            ok, err = (False, "missing_helper")
+
+        if ok:
+            flash("We emailed you a reset link.", "success")
+        else:
+            print("🔐 Password reset link (fallback):", reset_url)
+            flash("Reset link created. Email not configured—link logged in server.", "success")
+
+        return redirect(url_for("login"))
+
+    return render_template("forgot.html")
+
+
+@app.route("/reset/<token>", methods=["GET", "POST"])
+def reset_password_token(token):
+    s = get_serializer()
+    try:
+        data = s.loads(token, max_age=3600)  # 1 hour validity
+    except SignatureExpired:
+        flash("Reset link expired. Please try again.", "error")
+        return redirect(url_for("forgot"))
+    except BadSignature:
+        flash("Invalid reset link.", "error")
+        return redirect(url_for("forgot"))
+
+    user = Coach.query.get(data.get("uid"))
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("forgot"))
+
+    if request.method == "POST":
+        new_pw = (request.form.get("password") or "").strip()
+        confirm = (request.form.get("confirm") or "").strip()
+        if len(new_pw) < 8:
+            flash("Password must be at least 8 characters.", "error")
+            return redirect(request.url)
+        if new_pw != confirm:
+            flash("Passwords do not match.", "error")
+            return redirect(request.url)
+
+        user.password = generate_password_hash(new_pw)
+        db.session.commit()
+        flash("Password updated. You can log in now.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("reset_password_token.html")
+
+
 
 @app.route("/add_coach", methods=["GET", "POST"])
 @login_required
@@ -858,6 +949,54 @@ def reset_password():
     return render_template("reset_password.html", coaches=coaches, message=message)
 
 
+@app.route("/forgot", methods=["GET", "POST"])
+def forgot():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        user = Coach.query.filter_by(username=username).first()
+        if not user:
+            flash("If that user exists, we sent a reset link.", "success")
+            return redirect(url_for("login"))
+
+        s = get_serializer()
+        token = s.dumps({"uid": user.id})
+        reset_url = url_for("reset_password_token", token=token, _external=True)
+        # TODO: send via email. For now, log it:
+        print("🔐 Password reset link:", reset_url)
+        flash("Check email for reset link. (For now, see server logs.)", "success")
+        return redirect(url_for("login"))
+
+    return render_template("forgot.html")  # simple form with username field
+
+
+@app.route("/reset/<token>", methods=["GET", "POST"])
+def reset_password_token(token):
+    s = get_serializer()
+    try:
+        data = s.loads(token, max_age=3600)  # 1 hour
+    except SignatureExpired:
+        flash("Reset link expired. Please try again.", "error")
+        return redirect(url_for("forgot"))
+    except BadSignature:
+        flash("Invalid reset link.", "error")
+        return redirect(url_for("forgot"))
+
+    user = Coach.query.get(data.get("uid"))
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("forgot"))
+
+    if request.method == "POST":
+        new_pw = request.form.get("password") or ""
+        if len(new_pw) < 8:
+            flash("Password must be at least 8 characters.", "error")
+            return redirect(request.url)
+        user.password = generate_password_hash(new_pw)
+        db.session.commit()
+        flash("Password updated. You can log in now.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("reset_password_token.html")  # asks for new password twice if you want
 
 
 

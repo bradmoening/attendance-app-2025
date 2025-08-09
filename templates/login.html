@@ -8,6 +8,11 @@
     <br>
     <input type="submit" value="Login">
 </form>
+
+<p style="margin-top:10px;">
+  <a href="{{ url_for('forgot') }}">Forgot your password?</a>
+</p>
+
 {% if error %}
 <p style="color:red">{{ error }}</p>
 {% endif %}

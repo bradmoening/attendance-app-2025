@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Forgot Password</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; margin-bottom: .8rem; }
+    label { font-weight: 600; display:block; margin-top: .8rem; }
+    input[type=text] { width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:4px; }
+    button { margin-top: 1rem; padding: 10px 16px; border:0; border-radius:4px; background:#007bff; color:#fff; cursor:pointer; }
+    button:hover { background:#0056b3; }
+    a { display:inline-block; margin-top:1rem; }
+  </style>
+</head>
+<body>
+  <h1>Forgot Password</h1>
+  <p>Enter your username to receive a password reset link.</p>
+  <form method="post">
+    <label for="username">Username</label>
+    <input type="text" name="username" id="username" required>
+    <button type="submit">Send Reset Link</button>
+  </form>
+  <a href="{{ url_for('login') }}">Back to Login</a>
+</body>
+</html>
