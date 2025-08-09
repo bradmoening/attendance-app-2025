@@ -562,14 +562,7 @@ def reset_password():
     return render_template("reset_password.html", coaches=coaches, message=message)
 
 
-@app.route("/seed_teams")
-def seed_teams():
-    if not Team.query.first():
-        for name in ["Undercut", "Chicane", "Box Box", "Push Mode"]:
-            db.session.add(Team(name=name))
-        db.session.commit()
-        return "✅ Teams seeded!"
-    return "⚠️ Teams already exist."
+
 
 
 def seed_default_coach():
@@ -591,6 +584,7 @@ def seed_teams():
             db.session.add(Team(name=name))
         db.session.commit()
         print("✅ Teams seeded!")
+
 
 
 if __name__ == "__main__":
