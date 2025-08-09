@@ -250,18 +250,62 @@ def attendance():
 @app.route("/history", methods=["GET", "POST"])
 @login_required
 def history():
-    dates = db.session.query(Attendance.date).distinct().order_by(Attendance.date.desc()).all()
-    selected_date = request.form.get("selected_date") or datetime.date.today().isoformat()
-    selected_team_id = request.form.get("team_id")
+    # All known dates (or today if none yet)
+    all_dates = [d[0] for d in db.session.query(Attendance.date)
+                 .distinct().order_by(Attendance.date.desc()).all()] or [datetime.date.today().isoformat()]
 
-    query = db.session.query(Athlete.first_name, Athlete.last_name, Attendance.status, Attendance.notes).join(Attendance, (Attendance.athlete_id == Athlete.id) & (Attendance.date == selected_date), isouter=True)
+    # Pull inputs from POST (form) or GET (link)
+    selected_date = (request.form.get("selected_date")
+                     or request.args.get("selected_date")
+                     or all_dates[0])
+
+    raw_team = request.form.get("team_id") or request.args.get("team_id")
+    try:
+        selected_team_id = int(raw_team) if raw_team else None
+    except (TypeError, ValueError):
+        selected_team_id = None
+
+    # Default to coach's team if nothing chosen
+    if selected_team_id is None and getattr(current_user, "team_id", None):
+        selected_team_id = current_user.team_id
+
+    # Build query: everyone for the day, with left join to attendance
+    query = (
+        db.session.query(
+            Athlete.first_name,        # [0]
+            Athlete.last_name,         # [1]
+            Attendance.status,         # [2]
+            Attendance.notes           # [3]
+        )
+        .outerjoin(
+            Attendance,
+            (Attendance.athlete_id == Athlete.id) & (Attendance.date == selected_date)
+        )
+    )
     if selected_team_id:
         query = query.filter(Athlete.team_id == selected_team_id)
-    query = query.order_by(Athlete.last_name, Athlete.first_name)
 
-    teams = Team.query.order_by(Team.name).all()
+    history_data = query.order_by(Athlete.last_name, Athlete.first_name).all()
 
-    return render_template("history.html", dates=[d[0] for d in dates], selected_date=selected_date, teams=teams, selected_team_id=int(selected_team_id) if selected_team_id else None, history_data=query.all())
+    # Counts for Present / Absent / Unmarked
+    present_count = sum(1 for _, _, s, _ in history_data if s == "Present")
+    absent_count  = sum(1 for _, _, s, _ in history_data if s == "Absent")
+    unmarked_count = sum(1 for _, _, s, _ in history_data if s not in ("Present", "Absent"))
+
+    # IMPORTANT: pass teams as (id, name) tuples to match team[0]/team[1] in your template
+    teams = db.session.query(Team.id, Team.name).order_by(Team.name).all()
+
+    return render_template(
+        "history.html",
+        dates=all_dates,
+        selected_date=selected_date,
+        teams=teams,
+        selected_team_id=selected_team_id,
+        history_data=history_data,
+        present_count=present_count,
+        absent_count=absent_count,
+        unmarked_count=unmarked_count,
+    )
 
 @app.route("/add_coach", methods=["GET", "POST"])
 @login_required
