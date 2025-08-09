@@ -45,13 +45,17 @@ class Team(db.Model):
     name = db.Column(db.String(100), nullable=False, unique=True)
     athletes = db.relationship('Athlete', backref='team', lazy=True)
 
+from sqlalchemy.schema import UniqueConstraint
+
 class Attendance(db.Model):
+    __table_args__ = (UniqueConstraint('athlete_id', 'date', name='uq_attendance_day'),)
     id = db.Column(db.Integer, primary_key=True)
     athlete_id = db.Column(db.Integer, db.ForeignKey('athlete.id'), nullable=False)
-    date = db.Column(db.String(10), nullable=False)
+    date = db.Column(db.String(10), nullable=False)  # ISO format string is fine
     status = db.Column(db.String(20), nullable=False)
-    notes = db.Column(db.String(255), nullable=True)
+    notes = db.Column(db.String(255))
     athlete = db.relationship("Athlete", backref="attendance_records")
+
 
 class Coach(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -87,6 +91,19 @@ def ensure_athlete_columns():
             print("Running:", s)
             conn.execute(text(s))
     print("Athlete columns ensured.")
+
+from sqlalchemy import text
+
+def ensure_attendance_unique_index():
+    # Enforce one row per (athlete_id, date). Safe to run multiple times.
+    stmt = text("""
+        CREATE UNIQUE INDEX IF NOT EXISTS ix_attendance_athlete_date
+        ON attendance (athlete_id, date)
+    """)
+    with db.engine.begin() as conn:
+        conn.execute(stmt)
+    print("Attendance unique index ensured.")
+
 
 
 # Login setup
@@ -577,22 +594,28 @@ def seed_teams():
 
 
 if __name__ == "__main__":
+    # in __main__ path
     with app.app_context():
         db.create_all()
         ensure_athlete_columns()
+        ensure_attendance_unique_index()   # <-- add this line
         print("✅ Tables created")
         seed_default_coach()
         seed_teams()
+
     app.run(debug=True)
 else:
+    # in the else: (Render/gunicorn) path
     with app.app_context():
         try:
             db.create_all()
-            ensure_athlete_columns()   # <-- add this line
+            ensure_athlete_columns()
+            ensure_attendance_unique_index()   # <-- add this line
             print("✅ Tables created")
             seed_default_coach()
             seed_teams()
         except Exception as e:
             print(f"❌ Error during db.create_all(): {e}")
+
 
 
