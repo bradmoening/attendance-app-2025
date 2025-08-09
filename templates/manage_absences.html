@@ -5,64 +5,25 @@
   <title>Manage Absences</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      font-family: sans-serif;
-      margin: 1rem;
-    }
-
-    h1, h2 {
-      font-size: 1.3rem;
-    }
-
-    label {
-      display: block;
-      margin-top: 10px;
-      font-weight: bold;
-    }
-
+    body { font-family: sans-serif; margin: 1rem; }
+    h1, h2 { font-size: 1.3rem; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
     select {
-      width: 100%;
-      padding: 8px;
-      font-size: 1rem;
-      margin-top: 5px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
+      width: 100%; padding: 8px; font-size: 1rem; margin-top: 5px;
+      border-radius: 4px; border: 1px solid #ccc;
     }
-
-    ul {
-      padding-left: 0;
-      list-style-type: none;
-    }
-
+    ul { padding-left: 0; list-style-type: none; }
     li {
-      margin-bottom: 12px;
-      padding: 10px;
-      background-color: #f4f4f4;
-      border-radius: 5px;
+      margin-bottom: 12px; padding: 10px; background-color: #f4f4f4; border-radius: 5px;
     }
-
-    form.inline {
-      display: inline;
-    }
-
+    form.inline { display: inline; }
+    /* Button now green, since action = mark as Present */
     button {
-      padding: 6px 12px;
-      font-size: 0.95rem;
-      margin-left: 8px;
-      background-color: #dc3545;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
+      padding: 6px 12px; font-size: 0.95rem; margin-left: 8px;
+      background-color: #2e7d32; color: white; border: none; border-radius: 4px; cursor: pointer;
     }
-
-    button:hover {
-      background-color: #c82333;
-    }
-
-    nav a {
-      font-size: 1rem;
-    }
+    button:hover { background-color: #1b5e20; }
+    nav a { font-size: 1rem; }
   </style>
 </head>
 <body>
@@ -94,10 +55,10 @@
           {% if absence[2] %}
             – <em>Note: {{ absence[2] }}</em>
           {% endif %}
-          <form method="post" class="inline">
+          <form method="post" class="inline" onsubmit="return confirm('Mark this absence on {{ absence[1] }} as Present?');">
             <input type="hidden" name="athlete_id" value="{{ selected_id }}">
             <input type="hidden" name="delete_id" value="{{ absence[0] }}">
-            <button type="submit">Delete</button>
+            <button type="submit">Mark Present</button>
           </form>
         </li>
       {% endfor %}
@@ -106,7 +67,7 @@
     <p>No absences found for this athlete.</p>
   {% endif %}
 
-  <p><a href="/">Back to Main Page</a></p>
+  <p><a href="{{ url_for('home') }}">Back to Main Page</a></p>
 
 </body>
 </html>

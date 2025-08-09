@@ -586,12 +586,20 @@ def manage_absences():
         sid = None
 
     # Handle deletion (only delete Absent rows)
+   # Handle deletion -> actually mark Present instead of deleting
     if delete_id:
         try:
-            Attendance.query.filter_by(id=delete_id, status="Absent").delete()
-            db.session.commit()
+            rec = Attendance.query.get(delete_id)
+            if rec and rec.status == "Absent":
+                rec.status = "Present"
+                rec.notes = None  # optional: clear note when marking present
+                db.session.commit()
+            else:
+                # fallback: if something's weird, just ignore gracefully
+                db.session.rollback()
         except Exception:
             db.session.rollback()
+
 
     # Handle add (mark a date as Absent, upserting if a Present exists)
     if action == "add_absence" and sid and add_date:
