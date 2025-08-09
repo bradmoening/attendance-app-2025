@@ -84,6 +84,29 @@ class Coach(UserMixin, db.Model):
 
 
 
+def rename_teams_to_coaches():
+    """Rename the first four teams (by ID) to Brad, Chad, Grace, Klatt.
+       If fewer than 4 teams exist, create them."""
+    desired = ["Brad", "Chad", "Grace", "Klatt"]
+
+    teams = Team.query.order_by(Team.id).all()
+
+    # Create up to 4 if missing
+    while len(teams) < 4:
+        t = Team(name=f"Team{len(teams)+1}")
+        db.session.add(t)
+        db.session.flush()
+        teams.append(t)
+
+    # Rename first four
+    for i, name in enumerate(desired):
+        teams[i].name = name
+
+    db.session.commit()
+    print("✅ Team names set to:", ", ".join(desired))
+
+
+
 from sqlalchemy import inspect, text
 
 def ensure_athlete_columns():
@@ -987,6 +1010,9 @@ if __name__ == "__main__":
         print("✅ Tables created")
         seed_default_coach()
         seed_teams()
+        if os.getenv("RENAME_TEAMS_ON_BOOT") == "1":
+            rename_teams_to_coaches()
+
 
     app.run(debug=True)
 else:
@@ -999,6 +1025,10 @@ else:
             print("✅ Tables created")
             seed_default_coach()
             seed_teams()
+            if os.getenv("RENAME_TEAMS_ON_BOOT") == "1":
+                rename_teams_to_coaches()
+
+
         except Exception as e:
             print(f"❌ Error during db.create_all(): {e}")
 
