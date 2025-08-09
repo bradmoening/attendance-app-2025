@@ -949,24 +949,6 @@ def reset_password():
     return render_template("reset_password.html", coaches=coaches, message=message)
 
 
-@app.route("/forgot", methods=["GET", "POST"])
-def forgot():
-    if request.method == "POST":
-        username = (request.form.get("username") or "").strip()
-        user = Coach.query.filter_by(username=username).first()
-        if not user:
-            flash("If that user exists, we sent a reset link.", "success")
-            return redirect(url_for("login"))
-
-        s = get_serializer()
-        token = s.dumps({"uid": user.id})
-        reset_url = url_for("reset_password_token", token=token, _external=True)
-        # TODO: send via email. For now, log it:
-        print("🔐 Password reset link:", reset_url)
-        flash("Check email for reset link. (For now, see server logs.)", "success")
-        return redirect(url_for("login"))
-
-    return render_template("forgot.html")  # simple form with username field
 
 
 @app.route("/reset/<token>", methods=["GET", "POST"])
