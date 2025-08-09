@@ -104,6 +104,27 @@ def ensure_attendance_unique_index():
         conn.execute(stmt)
     print("Attendance unique index ensured.")
 
+from sqlalchemy import text
+
+def ensure_athlete_unique_index(per_team=True):
+    """
+    Create a functional UNIQUE index to prevent duplicate names.
+    - per_team=True => unique on (lower(first), lower(last), team_id)
+    - per_team=False => unique on (lower(first), lower(last))
+    """
+    with db.engine.begin() as conn:
+        if per_team:
+            conn.execute(text("""
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_athlete_name_team
+                ON athlete (lower(first_name), lower(last_name), team_id);
+            """))
+        else:
+            conn.execute(text("""
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_athlete_name_global
+                ON athlete (lower(first_name), lower(last_name));
+            """))
+
+
 
 
 # Login setup
@@ -331,6 +352,9 @@ def add_coach():
 import csv
 from io import TextIOWrapper
 
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+
 @app.route("/import_csv", methods=["GET", "POST"])
 @login_required
 def import_csv():
@@ -341,26 +365,31 @@ def import_csv():
                 flash("No file uploaded.", "error")
                 return redirect(url_for("import_csv"))
 
-            # CSV parse
             f = TextIOWrapper(file.stream, encoding="utf-8", newline="")
             reader = csv.DictReader(f)
 
-            # Teams lookup (both by name and id)
+            # Team lookups
             all_teams = Team.query.all()
-            teams_by_name = {t.name.strip(): t for t in all_teams if t.name}
-            teams_by_id = {int(t.id): t for t in all_teams}
+            teams_by_name = { (t.name or "").strip(): t for t in all_teams }
+            teams_by_id   = { int(t.id): t for t in all_teams }
 
             added = 0
             skipped_missing_names = 0
-            skipped_unknown_team = 0
+            skipped_unknown_team  = 0
+            skipped_infile_dupes  = 0
+            skipped_db_dupes      = 0
+
+            # in-file duplicate guard: per-team uniqueness (first+last+team)
+            seen = set()  # keys like ("ava","jones", team_id or None)
 
             for row in reader:
                 fn = (row.get("first_name") or "").strip()
-                ln = (row.get("last_name") or "").strip()
+                ln = (row.get("last_name")  or "").strip()
                 if not fn or not ln:
                     skipped_missing_names += 1
                     continue
 
+                # Resolve team
                 team_val = (row.get("team_name") or row.get("team_id") or "").strip()
                 team = None
                 if team_val:
@@ -371,6 +400,10 @@ def import_csv():
                 team_id = team.id if team else None
                 if team_val and not team:
                     skipped_unknown_team += 1
+                    # still import with team_id=None? choose to proceed without team:
+                    # comment next two lines if you want to *skip* entirely instead.
+                    # continue  # uncomment to skip rows with unknown team
+                    # (fallthrough keeps team_id=None)
 
                 # Optional fields
                 grade_raw = (row.get("grade") or "").strip()
@@ -380,23 +413,54 @@ def import_csv():
                     grade = None
                 gender = (row.get("gender") or "").strip() or None
 
-                db.session.add(Athlete(
-                    first_name=fn,
-                    last_name=ln,
-                    grade=grade,
-                    gender=gender,
-                    team_id=team_id
-                ))
-                added += 1
+                key = (fn.lower(), ln.lower(), team_id)
+                if key in seen:
+                    skipped_infile_dupes += 1
+                    continue
+                seen.add(key)
+
+                # DB-level duplicate check (case-insensitive, per team)
+                exists = (
+                    db.session.query(Athlete.id)
+                    .filter(
+                        func.lower(Athlete.first_name) == fn.lower(),
+                        func.lower(Athlete.last_name)  == ln.lower(),
+                        Athlete.team_id == team_id
+                    )
+                    .first()
+                )
+                if exists:
+                    skipped_db_dupes += 1
+                    continue
+
+                # Add and flush so we can catch a unique-index violation early
+                try:
+                    db.session.add(Athlete(
+                        first_name=fn,
+                        last_name=ln,
+                        grade=grade,
+                        gender=gender,
+                        team_id=team_id
+                    ))
+                    db.session.flush()
+                    added += 1
+                except IntegrityError:
+                    db.session.rollback()
+                    skipped_db_dupes += 1
+                    # keep going
 
             db.session.commit()
 
-            msg = [f"Imported {added} athletes."]
+            bits = [f"Imported {added} athletes."]
             if skipped_missing_names:
-                msg.append(f"Skipped {skipped_missing_names} missing name(s).")
+                bits.append(f"Skipped {skipped_missing_names} missing name(s).")
             if skipped_unknown_team:
-                msg.append(f"{skipped_unknown_team} row(s) had unknown team.")
-            flash(" ".join(msg), "success")
+                bits.append(f"{skipped_unknown_team} row(s) had unknown team.")
+            if skipped_infile_dupes:
+                bits.append(f"Skipped {skipped_infile_dupes} duplicate row(s) in file.")
+            if skipped_db_dupes:
+                bits.append(f"Skipped {skipped_db_dupes} already on roster.")
+            flash(" ".join(bits), "success")
             return redirect(url_for("attendance"))
 
         except Exception as e:
@@ -405,8 +469,8 @@ def import_csv():
             flash(f"Import failed: {e}", "error")
             return redirect(url_for("import_csv"))
 
-    # >>> IMPORTANT: always return a response on GET <<<
     return render_template("import_csv.html")
+
 
 
 
@@ -494,69 +558,82 @@ def flagged_athletes():
     )
 
 
+from sqlalchemy import func
+
 @app.route("/manage_roster", methods=["GET", "POST"])
 @login_required
 def manage_roster():
-    """
-    Display and modify the roster of athletes.  Coaches can add new
-    athletes by submitting first name, last name, grade, gender and
-    team assignment.  Existing athletes may be removed from the roster.
-    A hidden `action` field in the form determines whether the request
-    is an addition or deletion.  After processing a POST request the
-    user is redirected back to this page to reflect changes.
-    """
     if request.method == "POST":
         action = request.form.get("action")
+
         if action == "add":
-            # Extract form fields for new athlete
-            first_name = request.form.get("first_name", "").strip()
-            last_name = request.form.get("last_name", "").strip()
-            grade = request.form.get("grade")
-            gender = request.form.get("gender")
-            team_id = request.form.get("team_id") or None
-            if first_name and last_name and grade and gender:
-                try:
-                    athlete = Athlete(
-                        first_name=first_name,
-                        last_name=last_name,
-                        grade=int(grade),
-                        gender=gender,
-                        team_id=int(team_id) if team_id else None,
-                    )
-                    db.session.add(athlete)
-                    db.session.commit()
-                    flash(f"Added athlete {first_name} {last_name}.")
-                except Exception as e:
-                    db.session.rollback()
-                    flash(f"Error adding athlete: {e}")
+            first_name = (request.form.get("first_name") or "").strip()
+            last_name  = (request.form.get("last_name") or "").strip()
+            grade      = request.form.get("grade")
+            gender     = request.form.get("gender")
+            team_id    = request.form.get("team_id") or None
+
+            # Normalize
+            team_id_int = int(team_id) if team_id else None
+            grade_int = int(grade) if grade else None
+
+            # HARD DEDUPE: case-insensitive name match within the same team
+            exists = (
+                db.session.query(Athlete.id)
+                .filter(
+                    func.lower(Athlete.first_name) == first_name.lower(),
+                    func.lower(Athlete.last_name)  == last_name.lower(),
+                    Athlete.team_id == team_id_int
+                )
+                .first()
+            )
+            if exists:
+                flash(f"Duplicate blocked: {first_name} {last_name} already on this team.", "error")
+                return redirect(url_for("manage_roster"))
+
+            try:
+                athlete = Athlete(
+                    first_name=first_name,
+                    last_name=last_name,
+                    grade=grade_int,
+                    gender=gender,
+                    team_id=team_id_int
+                )
+                db.session.add(athlete)
+                db.session.commit()
+                flash(f"Added athlete {first_name} {last_name}.", "success")
+            except Exception as e:
+                db.session.rollback()
+                flash(f"Error adding athlete: {e}", "error")
+
         elif action == "delete":
             athlete_id = request.form.get("athlete_id")
             if athlete_id:
                 try:
-                    # Delete attendance records first to maintain referential integrity
+                    # Remove attendance first (FK hygiene), then athlete
                     Attendance.query.filter_by(athlete_id=athlete_id).delete()
-                    athlete = Athlete.query.get(athlete_id)
-                    if athlete:
-                        db.session.delete(athlete)
-                        db.session.commit()
-                        flash("Athlete removed.")
+                    Athlete.query.filter_by(id=athlete_id).delete()
+                    db.session.commit()
+                    flash("Athlete removed.", "success")
                 except Exception as e:
                     db.session.rollback()
-                    flash(f"Error removing athlete: {e}")
-        # POST-redirect-GET to avoid form resubmission
+                    flash(f"Error removing athlete: {e}", "error")
+
         return redirect(url_for("manage_roster"))
 
-    # GET request: load all athletes and teams for display
+    # GET: return athletes + teams for the template
     athletes = (
-        db.session.query(Athlete.id, Athlete.first_name, Athlete.last_name)
+        db.session.query(
+            Athlete.id,
+            Athlete.first_name,
+            Athlete.last_name,
+            Team.name.label("team_name"),
+        )
+        .join(Team, Team.id == Athlete.team_id, isouter=True)
         .order_by(Athlete.last_name, Athlete.first_name)
         .all()
     )
-    teams = (
-        db.session.query(Team.id, Team.name)
-        .order_by(Team.name)
-        .all()
-    )
+    teams = db.session.query(Team.id, Team.name).order_by(Team.name).all()
     return render_template("manage_roster.html", athletes=athletes, teams=teams)
 
 
@@ -745,28 +822,29 @@ def seed_teams():
 
 
 if __name__ == "__main__":
-    # in __main__ path
     with app.app_context():
         db.create_all()
         ensure_athlete_columns()
-        ensure_attendance_unique_index()   # <-- add this line
+        ensure_attendance_unique_index()
+        ensure_athlete_unique_index(per_team=True)   # <-- keep this
         print("✅ Tables created")
         seed_default_coach()
         seed_teams()
 
     app.run(debug=True)
 else:
-    # in the else: (Render/gunicorn) path
     with app.app_context():
         try:
             db.create_all()
             ensure_athlete_columns()
-            ensure_attendance_unique_index()   # <-- add this line
+            ensure_attendance_unique_index()
+            ensure_athlete_unique_index(per_team=True)   # <-- add this here too
             print("✅ Tables created")
             seed_default_coach()
             seed_teams()
         except Exception as e:
             print(f"❌ Error during db.create_all(): {e}")
+
 
 
 

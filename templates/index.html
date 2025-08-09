@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Attendance Tracker</title>
+  <title>HP XC Attendance</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     :root {
@@ -10,22 +10,26 @@
       --red-hover: #b71c1c;
       --light: #f0f0f0;
       --text: #333;
+      --accent: #d84343;
+      --accent-hover: #cc3b3b;
     }
     body {
       font-family: sans-serif;
       margin: 20px auto;
       max-width: 640px;
-      color: #222;
+      color: var(--text);
       background: #fafafa;
+      padding: 0 10px;
     }
     h1 {
-      font-size: 1.9rem;
+      font-size: 2rem;
       text-align: center;
-      margin: 10px 0 18px;
+      margin: 10px 0 24px;
     }
     ul { list-style: none; padding: 0; margin: 0; }
-    li { margin: 8px 0; }
-    /* Main button */
+    li { margin-bottom: 16px; }
+
+    /* Main buttons */
     a.button {
       display: block;
       width: 100%;
@@ -35,7 +39,7 @@
       text-decoration: none;
       font-size: 1.15rem;
       font-weight: 700;
-      padding: 12px 0;
+      padding: 14px 0;
       border-radius: 6px;
       box-shadow: 2px 2px 8px rgba(0,0,0,.12);
       transition: background .15s ease;
@@ -44,34 +48,36 @@
 
     /* Sub-buttons (grouped under a main button) */
     .sublist {
-      margin-top: 6px;
+      margin-top: 8px;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 8px;
     }
     a.subbutton {
       display: block;
       text-align: center;
-      background: #d84343; 
+      background: var(--accent); 
       color: #fff;
       text-decoration: none;
       font-size: 1rem;
       font-weight: 600;
-      padding: 9px 0;
+      padding: 10px 0;
       border-radius: 6px;
       box-shadow: 1px 1px 6px rgba(0,0,0,.10);
       transition: background .15s ease;
     }
-    a.subbutton:hover { background: #cc3b3b; }
+    a.subbutton:hover { background: var(--accent-hover); }
 
-    hr { margin: 28px 0 6px; border: none; border-top: 1px solid #ddd; }
+    hr { margin: 30px 0 12px; border: none; border-top: 1px solid #ddd; }
   </style>
 </head>
 <body>
   <h1>HP XC Attendance</h1>
 
   <ul>
-    <li><a class="button" href="{{ url_for('attendance') }}">Take Attendance</a></li>
+    <li>
+      <a class="button" href="{{ url_for('attendance') }}">Take Attendance</a>
+    </li>
 
     <li>
       <a class="button" href="{{ url_for('history') }}">View Attendance History</a>
@@ -79,13 +85,23 @@
         <a class="subbutton" href="{{ url_for('athlete_report') }}">Athlete Absence Report</a>
         <a class="subbutton" href="{{ url_for('flagged_athletes') }}">Flagged Athletes</a>
         <a class="subbutton" href="{{ url_for('manage_absences') }}">Manage Absences</a>
-
       </div>
     </li>
 
-    <li><a class="button" href="{{ url_for('import_csv') }}">Import Roster (CSV)</a></li>
-    <li><a class="button" href="{{ url_for('add_coach') }}">Add Coach</a></li>
-    <li><a class="button" href="{{ url_for('logout') }}">Logout</a></li>
+    <li>
+      <a class="button" href="{{ url_for('import_csv') }}">Import Roster (CSV)</a>
+      <div class="sublist">
+        <a class="subbutton" href="{{ url_for('manage_roster') }}">Manage Roster</a>
+      </div>
+    </li>
+
+    <li>
+      <a class="button" href="{{ url_for('add_coach') }}">Add Coach</a>
+    </li>
+
+    <li>
+      <a class="button" href="{{ url_for('logout') }}">Logout</a>
+    </li>
   </ul>
 
   <hr>

@@ -5,69 +5,35 @@
   <title>Manage Roster</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      font-family: sans-serif;
-      margin: 1rem;
+    body { font-family: sans-serif; margin: 1rem; }
+    h1, h2 { font-size: 1.3rem; }
+    form { margin-bottom: 1.5rem; }
+    label { display: block; margin-top: 10px; }
+    input[type="text"], input[type="number"], select {
+      width: 100%; padding: 8px; font-size: 1rem; margin-top: 4px;
+      border-radius: 4px; border: 1px solid #ccc;
     }
-
-    h1, h2 {
-      font-size: 1.3rem;
+    .btn, input[type="submit"], button {
+      margin-top: 12px; padding: 10px 16px; font-size: 1rem; border: none;
+      border-radius: 5px; background-color: #007bff; color: white; cursor: pointer;
     }
-
-    form {
-      margin-bottom: 2rem;
-    }
-
-    label {
-      display: block;
-      margin-top: 10px;
-    }
-
-    input[type="text"],
-    input[type="number"],
-    select {
-      width: 100%;
-      padding: 8px;
-      font-size: 1rem;
-      margin-top: 4px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-    }
-
-    input[type="submit"],
-    button {
-      margin-top: 12px;
-      padding: 10px 16px;
-      font-size: 1rem;
-      border: none;
-      border-radius: 5px;
-      background-color: #007bff;
-      color: white;
-      cursor: pointer;
-    }
-
-    button:hover,
-    input[type="submit"]:hover {
-      background-color: #0056b3;
-    }
-
-    ul {
-      padding-left: 0;
-      list-style-type: none;
-    }
-
-    li {
-      margin-bottom: 10px;
-      font-size: 1rem;
-    }
-
-    form.inline {
-      display: inline;
-    }
-
-    nav a {
-      font-size: 1rem;
-    }
+    .btn:hover, input[type="submit"]:hover, button:hover { background-color: #0056b3; }
+    .btn-danger { background:#c62828; } .btn-danger:hover { background:#b71c1c; }
+    ul { padding-left: 0; list-style-type: none; }
+    li { margin-bottom: 10px; font-size: 1rem; display:flex; align-items:center; justify-content:space-between; }
+    form.inline { display: inline; }
+    nav a { font-size: 1rem; }
+    .flash { padding:.6rem .8rem; border-radius:6px; margin:.6rem 0; }
+    .flash.error { background:#fdecea; color:#611a15; }
+    .flash.success { background:#e6f4ea; color:#0f5132; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+    .muted { color:#666; font-size:.95rem; }
+    .warn { color:#8a6d3b; background:#fcf8e3; border:1px solid #faebcc;
+            padding:6px 8px; border-radius:6px; display:none; margin-top:8px; }
+    .toolbar { display:flex; gap:8px; align-items:center; margin:10px 0; }
+    .toolbar input[type="text"] { max-width: 360px; }
+    .list { margin-top:.5rem; }
+    .name { flex: 1 1 auto; }
   </style>
 </head>
 <body>
@@ -76,53 +42,117 @@
   </nav>
   <hr>
 
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, msg in messages %}
+        <div class="flash {{ category }}">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
   <h1>Roster Management</h1>
 
   <h2>Add Athlete</h2>
-  <form method="post" action="/manage_roster">
+  <form method="post" action="{{ url_for('manage_roster') }}" id="addForm">
     <input type="hidden" name="action" value="add">
-    
+
     <label for="first_name">First Name:</label>
-    <input type="text" name="first_name" required>
+    <input type="text" name="first_name" id="first_name" required>
 
     <label for="last_name">Last Name:</label>
-    <input type="text" name="last_name" required>
+    <input type="text" name="last_name" id="last_name" required>
 
-    <label for="grade">Grade:</label>
-    <input type="number" name="grade" id="grade" min="7" max="12" required>
-
-    <label for="gender">Gender:</label>
-    <select name="gender" id="gender" required>
-      <option value="">--Select--</option>
-      <option value="Male">Male</option>
-      <option value="Female">Female</option>
-      <option value="Other">Other</option>
-    </select>
+    <div class="row">
+      <div>
+        <label for="grade">Grade:</label>
+        <input type="number" name="grade" id="grade" min="7" max="12" required>
+      </div>
+      <div>
+        <label for="gender">Gender:</label>
+        <select name="gender" id="gender" required>
+          <option value="">--Select--</option>
+          <option>Male</option>
+          <option>Female</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
 
     <label for="team_id">Team:</label>
-    <select name="team_id">
+    <select name="team_id" id="team_id">
       {% for team in teams %}
-        <option value="{{ team[0] }}">{{ team[1] }}</option>
+        <option value="{{ team[0] }}"
+          {% if current_user and current_user.team_id and team[0]==current_user.team_id %}selected{% endif %}>
+          {{ team[1] }}
+        </option>
       {% endfor %}
     </select>
 
-    <input type="submit" value="Add Athlete">
+    <!-- Client-side duplicate heads-up -->
+    <div id="dupeWarn" class="warn">Possible duplicate: that name already exists.</div>
+
+    <input type="submit" value="Add Athlete" class="btn">
   </form>
 
   <h2>Current Athletes</h2>
-  <ul>
+
+  <div class="toolbar">
+    <input type="text" id="filter" placeholder="Filter by name or team…">
+    <a class="btn" href="{{ url_for('import_csv') }}">Import CSV</a>
+  </div>
+
+  <ul id="list" class="list">
     {% for athlete in athletes %}
-      <li>
-        {{ athlete[1] }} {{ athlete[2] }}
-        <form method="post" action="/manage_roster" class="inline">
+      <li data-name="{{ (athlete[1] ~ ' ' ~ athlete[2])|lower }}" data-team="{{ athlete[3]|lower if athlete[3] }}">
+        <span class="name">
+          {{ athlete[1] }} {{ athlete[2] }} <span class="muted">— {{ athlete[3] or 'No team' }}</span>
+        </span>
+        <form method="post" action="{{ url_for('manage_roster') }}" class="inline"
+              onsubmit="return confirm('Remove {{ athlete[1] }} {{ athlete[2] }} from the roster?');">
           <input type="hidden" name="action" value="delete">
           <input type="hidden" name="athlete_id" value="{{ athlete[0] }}">
-          <button type="submit">Remove</button>
+          <button type="submit" class="btn btn-danger">Remove</button>
         </form>
       </li>
     {% endfor %}
   </ul>
 
-  <p><a href="/">Back to Main Page</a></p>
+  <p><a href="{{ url_for('home') }}">Back to Main Page</a></p>
+
+  <script>
+    // Live filter by name or team
+    const filter = document.getElementById('filter');
+    const list = document.getElementById('list');
+    filter.addEventListener('input', () => {
+      const q = filter.value.trim().toLowerCase();
+      for (const li of list.querySelectorAll('li')) {
+        const hay = (li.dataset.name + ' ' + (li.dataset.team || '')).toLowerCase();
+        li.style.display = hay.includes(q) ? '' : 'none';
+      }
+    });
+
+    // Client-side duplicate warning (first+last, case-insensitive)
+    const addForm = document.getElementById('addForm');
+    const dupeWarn = document.getElementById('dupeWarn');
+    const first = document.getElementById('first_name');
+    const last = document.getElementById('last_name');
+
+    function checkDupe() {
+      const target = (first.value + ' ' + last.value).trim().toLowerCase();
+      let hit = false;
+      for (const li of list.querySelectorAll('li')) {
+        if (li.dataset.name === target) { hit = true; break; }
+      }
+      dupeWarn.style.display = hit ? 'block' : 'none';
+      return !hit; // return false to block submit if you want hard-stop
+    }
+
+    first.addEventListener('input', checkDupe);
+    last.addEventListener('input', checkDupe);
+
+    // Soft-warn by default; change to hard-stop by uncommenting:
+    // addForm.addEventListener('submit', (e) => { if (!checkDupe()) { e.preventDefault(); } });
+  </script>
 </body>
 </html>
