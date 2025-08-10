@@ -588,6 +588,186 @@ def import_csv():
     return render_template("import_csv.html")
 
 
+import csv, io, zipfile, datetime
+from flask import Response, abort
+from functools import wraps
+
+# If you don't already have this:
+def admin_required(f):
+    @wraps(f)
+    def w(*a, **kw):
+        if getattr(current_user, "username", "") != "admin":
+            abort(403)
+        return f(*a, **kw)
+    return w
+
+def _csv_response(rows, headers, filename_base):
+    si = io.StringIO()
+    w = csv.writer(si)
+    w.writerow(headers)
+    for r in rows:
+        w.writerow(r)
+    out = si.getvalue()
+    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    resp = Response(out, mimetype="text/csv; charset=utf-8")
+    resp.headers["Content-Disposition"] = f"attachment; filename={filename_base}-{ts}.csv"
+    return resp
+
+@app.route("/admin/export", methods=["GET"])
+@login_required
+@admin_required
+def export_data():
+    """
+    Export CSV of a selected table or a ZIP of all:
+      /admin/export?table=attendance&team_id=1&since=2025-08-01&until=2025-08-31
+      /admin/export?table=all
+    tables: teams | athletes | attendance | coaches | all
+    """
+    table = (request.args.get("table") or "all").lower()
+    team_id = request.args.get("team_id", type=int)
+    since = (request.args.get("since") or "").strip()  # YYYY-MM-DD
+    until = (request.args.get("until") or "").strip()
+
+    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    # ----- TEAMS -----
+    if table == "teams":
+        rows = db.session.query(Team.id, Team.name).order_by(Team.id).all()
+        return _csv_response(rows, ["id", "name"], "teams")
+
+    # ----- ATHLETES -----
+    if table == "athletes":
+        q = (db.session.query(
+                Athlete.id,
+                Athlete.first_name,
+                Athlete.last_name,
+                Athlete.grade,
+                Athlete.gender,
+                Athlete.team_id,
+                Team.name.label("team_name"),
+            )
+            .join(Team, Team.id == Athlete.team_id, isouter=True)
+            .order_by(Athlete.last_name, Athlete.first_name))
+        if team_id:
+            q = q.filter(Athlete.team_id == team_id)
+        rows = q.all()
+        return _csv_response(
+            rows,
+            ["id","first_name","last_name","grade","gender","team_id","team_name"],
+            "athletes"
+        )
+
+    # ----- ATTENDANCE -----
+    if table == "attendance":
+        q = (db.session.query(
+                Attendance.id,
+                Attendance.athlete_id,
+                Athlete.first_name,
+                Athlete.last_name,
+                Athlete.team_id,
+                Team.name.label("team_name"),
+                Attendance.date,
+                Attendance.status,
+                Attendance.notes,
+            )
+            .join(Athlete, Athlete.id == Attendance.athlete_id)
+            .join(Team, Team.id == Athlete.team_id, isouter=True)
+        )
+        if team_id:
+            q = q.filter(Athlete.team_id == team_id)
+        if since:
+            q = q.filter(Attendance.date >= since)
+        if until:
+            q = q.filter(Attendance.date <= until)
+        q = q.order_by(Attendance.date.desc(), Athlete.last_name, Athlete.first_name)
+        rows = q.all()
+        return _csv_response(
+            rows,
+            ["id","athlete_id","first_name","last_name","team_id","team_name","date","status","notes"],
+            "attendance"
+        )
+
+    # ----- COACHES (no password hashes) -----
+    if table == "coaches":
+        q = (db.session.query(
+                Coach.id, Coach.name, Coach.username, Coach.email, Coach.team_id, Team.name.label("team_name")
+            )
+            .join(Team, Team.id == Coach.team_id, isouter=True)
+            .order_by(Coach.name))
+        if team_id:
+            q = q.filter(Coach.team_id == team_id)
+        rows = q.all()
+        return _csv_response(
+            rows,
+            ["id","name","username","email","team_id","team_name"],
+            "coaches"
+        )
+
+    # ----- ALL: build a ZIP with 4 CSVs -----
+    if table == "all":
+        mem = io.BytesIO()
+        with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            # teams
+            teams = db.session.query(Team.id, Team.name).order_by(Team.id).all()
+            _add_csv_to_zip(zf, "teams", ["id","name"], teams, ts)
+
+            # athletes
+            aq = (db.session.query(
+                    Athlete.id, Athlete.first_name, Athlete.last_name,
+                    Athlete.grade, Athlete.gender, Athlete.team_id,
+                    Team.name.label("team_name"))
+                  .join(Team, Team.id == Athlete.team_id, isouter=True)
+                  .order_by(Athlete.last_name, Athlete.first_name))
+            if team_id:
+                aq = aq.filter(Athlete.team_id == team_id)
+            _add_csv_to_zip(zf, "athletes",
+                ["id","first_name","last_name","grade","gender","team_id","team_name"],
+                aq.all(), ts)
+
+            # attendance
+            atq = (db.session.query(
+                    Attendance.id, Attendance.athlete_id,
+                    Athlete.first_name, Athlete.last_name,
+                    Athlete.team_id, Team.name.label("team_name"),
+                    Attendance.date, Attendance.status, Attendance.notes)
+                   .join(Athlete, Athlete.id == Attendance.athlete_id)
+                   .join(Team, Team.id == Athlete.team_id, isouter=True))
+            if team_id:
+                atq = atq.filter(Athlete.team_id == team_id)
+            if since:
+                atq = atq.filter(Attendance.date >= since)
+            if until:
+                atq = atq.filter(Attendance.date <= until)
+            atq = atq.order_by(Attendance.date.desc(), Athlete.last_name, Athlete.first_name)
+            _add_csv_to_zip(zf, "attendance",
+                ["id","athlete_id","first_name","last_name","team_id","team_name","date","status","notes"],
+                atq.all(), ts)
+
+            # coaches
+            cq = (db.session.query(
+                    Coach.id, Coach.name, Coach.username, Coach.email, Coach.team_id, Team.name.label("team_name"))
+                  .join(Team, Team.id == Coach.team_id, isouter=True)
+                  .order_by(Coach.name))
+            if team_id:
+                cq = cq.filter(Coach.team_id == team_id)
+            _add_csv_to_zip(zf, "coaches",
+                ["id","name","username","email","team_id","team_name"],
+                cq.all(), ts)
+
+        mem.seek(0)
+        resp = Response(mem.read(), mimetype="application/zip")
+        resp.headers["Content-Disposition"] = f"attachment; filename=export-{ts}.zip"
+        return resp
+
+    abort(400)
+
+def _add_csv_to_zip(zf, base, headers, rows, ts):
+    si = io.StringIO()
+    w = csv.writer(si)
+    w.writerow(headers)
+    for r in rows:
+        w.writerow(r)
+    zf.writestr(f"{base}-{ts}.csv", si.getvalue())
 
 
 

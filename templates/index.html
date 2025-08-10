@@ -102,6 +102,11 @@
     <li>
       <a class="button" href="{{ url_for('logout') }}">Logout</a>
     </li>
+{% if current_user.is_authenticated and current_user.username == 'admin' %}
+  <a href="{{ url_for('export_data', table='all') }}">Export (ZIP)</a>
+{% endif %}
+
+
   </ul>
 
   <hr>
