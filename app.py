@@ -207,11 +207,14 @@ def logout():
     logout_user()
     return redirect(url_for("login"))
 
+from zoneinfo import ZoneInfo  # make sure this is imported once
+
+
 @app.route("/attendance", methods=["GET", "POST"])
 @login_required
 def attendance():
-    central = pytz.timezone("America/Chicago")
-    today = datetime.now(central).date().isoformat()
+    central = ZoneInfo("America/Chicago")
+    today = datetime.datetime.now(central).date().isoformat()
 
 
     # Get team_id from querystring or form; normalize to int or None
@@ -316,7 +319,7 @@ def attendance():
 def history():
     # All known dates (or today if none yet)
     all_dates = [d[0] for d in db.session.query(Attendance.date)
-                 .distinct().order_by(Attendance.date.desc()).all()] or [datetime.date.today().isoformat()]
+                 .distinct().order_by(Attendance.date.desc()).all()] or [datetime.datetime.today().isoformat()]
 
     # Pull inputs from POST (form) or GET (link)
     selected_date = (request.form.get("selected_date")
