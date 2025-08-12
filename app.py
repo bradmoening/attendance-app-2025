@@ -230,7 +230,6 @@ def attendance():
     central = ZoneInfo("America/Chicago")
     today = datetime.datetime.now(central).date().isoformat()
 
-
     # Get team_id from querystring or form; normalize to int or None
     raw_team_id = request.args.get("team_id") or request.form.get("team_id")
     try:
@@ -238,32 +237,42 @@ def attendance():
     except (TypeError, ValueError):
         selected_team_id = None
 
-    # Handle toggle + note update
+    # ---------- POST: toggle or save note (no unwanted flipping) ----------
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
         note = (request.form.get("note") or "").strip()
-        if athlete_id:
-            try:
-                aid = int(athlete_id)
-            except (TypeError, ValueError):
-                aid = None
+        action = (request.form.get("action") or "toggle").strip()  # "toggle" or "save_note"
 
-            if aid:
-                record = Attendance.query.filter_by(athlete_id=aid, date=today).first()
-                if record:
-                    record.status = "Absent" if record.status == "Present" else "Present"
+        aid = None
+        try:
+            aid = int(athlete_id) if athlete_id else None
+        except (TypeError, ValueError):
+            aid = None
+
+        if aid:
+            record = Attendance.query.filter_by(athlete_id=aid, date=today).first()
+            if not record:
+                # should rarely happen because you auto-create on GET, but be safe
+                record = Attendance(athlete_id=aid, date=today, status="Present", notes=None)
+                db.session.add(record)
+
+            if action == "toggle":
+                record.status = "Absent" if record.status == "Present" else "Present"
+                # also capture any note typed alongside the toggle
+                if note != (record.notes or ""):
                     record.notes = note
-                else:
-                    db.session.add(Attendance(
-                        athlete_id=aid,
-                        date=today,
-                        status="Present",
-                        notes=note
-                    ))
-                db.session.commit()
+            elif action == "save_note":
+                # ONLY update the note; keep current status
+                if note != (record.notes or ""):
+                    record.notes = note
 
-        # Keep current team filter after submit
-        return redirect(url_for("attendance", team_id=selected_team_id))
+            db.session.commit()
+
+        # Keep current team filter and jump back to the same athlete row
+        return redirect(url_for("attendance",
+                                team_id=selected_team_id,
+                                _anchor=f"athlete-{aid or ''}"))
+    # ----------------------------------------------------------------------
 
     # ===== Auto-create Present rows on GET so green = saved in DB =====
     q = Athlete.query
@@ -293,7 +302,6 @@ def attendance():
                     .all())
 
     # Attendance & notes for today (TEAM-FILTER AWARE)
-    # Only pull records for the selected team (or all teams if no filter)
     today_records = (
         Attendance.query
         .join(Athlete, Attendance.athlete_id == Athlete.id)
@@ -308,7 +316,6 @@ def attendance():
 
     present_count = sum(1 for s in attendance_data.values() if s == "Present")
     absent_count = sum(1 for s in attendance_data.values() if s == "Absent")
-    # Unmarked = athletes shown minus number of records for those athletes
     unmarked_count = max(0, len(athletes) - len(attendance_data))
 
     teams = Team.query.order_by(Team.name).all()

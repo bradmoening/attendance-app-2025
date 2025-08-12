@@ -116,11 +116,19 @@
             <input type="hidden" name="athlete_id" value="{{ athlete.id }}">
             <input type="hidden" name="team_id" value="{{ selected_team_id or '' }}">
 
-            <button type="submit"
-                    class="status-btn {% if attendance.get(athlete.id) == 'Absent' %}absent{% else %}present{% endif %}">
-              {{ athlete.first_name }} {{ athlete.last_name[0] }}:
-              {% if attendance.get(athlete.id) == 'Absent' %}A{% else %}P{% endif %}
-            </button>
+           <button type="submit"
+        name="action" value="toggle"
+        class="status-btn {% if attendance.get(athlete.id) == 'Absent' %}absent{% else %}present{% endif %}">
+  {{ athlete.first_name }} {{ athlete.last_name[0] }}:
+  {% if attendance.get(athlete.id) == 'Absent' %}A{% else %}P{% endif %}
+</button>
+
+<!-- New: small save-note button that does NOT toggle -->
+<button type="submit" name="action" value="save_note"
+        style="flex:0 0 auto; height:40px; padding:6px 10px; font-size:14px; border-radius:6px; border:1px solid #ccc; background:#fff;">
+  Save
+</button>
+
 
             <input type="text" name="note" class="note-field"
                    placeholder="Note" value="{{ notes.get(athlete.id, '') }}">
