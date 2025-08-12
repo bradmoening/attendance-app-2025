@@ -208,7 +208,8 @@ def login():
         password = request.form["password"]
         user = Coach.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password):
-            login_user(user)
+            remember = bool(request.form.get("remember"))
+            login_user(user, remember=remember)
             return redirect(url_for("attendance"))
         else:
             error = "Invalid username or password"

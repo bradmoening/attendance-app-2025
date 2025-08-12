@@ -1,11 +1,19 @@
 <h1>Coach Login</h1>
 <form method="POST">
     <label>Username:</label>
-    <input type="text" name="username">
+    <input type="text" name="username" autocomplete="username">
     <br>
     <label>Password:</label>
-    <input type="password" name="password">
+    <input type="password" name="password" autocomplete="current-password">
     <br>
+
+    <!-- Remember me checkbox -->
+    <label style="display:inline-flex; align-items:center; gap:6px; margin:6px 0;">
+      <input type="checkbox" name="remember" checked>
+      Keep me signed in
+    </label>
+    <br>
+
     <input type="submit" value="Login">
 </form>
 
