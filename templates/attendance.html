@@ -52,7 +52,7 @@
       align-items: center;
       justify-content: center;
       flex: 0 0 auto;           /* don't grow, don't shrink */
-      min-width: 96px;          /* keep tap target */
+      min-width: 96px;          /* tap target */
       max-width: 44vw;          /* cap width on small screens */
       height: 40px;
       padding: 6px 10px;
@@ -75,6 +75,14 @@
       max-width: none;          /* allow full remaining width */
       padding: 6px;
       font-size: 14px;
+    }
+
+    .note-status {
+      flex: 0 0 auto;
+      font-size: 12px;
+      color: #6b7280;           /* subtle gray */
+      min-width: 36px;
+      text-align: left;
     }
 
     /* --- Wider screens: give button a bit more room --- */
@@ -116,22 +124,18 @@
             <input type="hidden" name="athlete_id" value="{{ athlete.id }}">
             <input type="hidden" name="team_id" value="{{ selected_team_id or '' }}">
 
-           <button type="submit"
-        name="action" value="toggle"
-        class="status-btn {% if attendance.get(athlete.id) == 'Absent' %}absent{% else %}present{% endif %}">
-  {{ athlete.first_name }} {{ athlete.last_name[0] }}:
-  {% if attendance.get(athlete.id) == 'Absent' %}A{% else %}P{% endif %}
-</button>
+            <!-- Status toggle (normal POST, page reload) -->
+            <button type="submit" name="action" value="toggle"
+                    class="status-btn {% if attendance.get(athlete.id) == 'Absent' %}absent{% else %}present{% endif %}">
+              {{ athlete.first_name }} {{ athlete.last_name[0] }}:
+              {% if attendance.get(athlete.id) == 'Absent' %}A{% else %}P{% endif %}
+            </button>
 
-<!-- New: small save-note button that does NOT toggle -->
-<button type="submit" name="action" value="save_note"
-        style="flex:0 0 auto; height:40px; padding:6px 10px; font-size:14px; border-radius:6px; border:1px solid #ccc; background:#fff;">
-  Save
-</button>
-
-
+            <!-- Note field (auto-saves via fetch; no reload) -->
             <input type="text" name="note" class="note-field"
+                   data-athlete-id="{{ athlete.id }}"
                    placeholder="Note" value="{{ notes.get(athlete.id, '') }}">
+            <span class="note-status" aria-live="polite"></span>
           </form>
         </div>
       </li>
@@ -139,7 +143,7 @@
   </ul>
 
   <script>
-    // remember scroll before any attendance form submits
+    // remember scroll before any attendance form submits (for toggles)
     document.addEventListener('submit', e => {
       if (e.target && e.target.matches('form')) {
         sessionStorage.setItem('att_scroll', String(window.scrollY));
@@ -149,6 +153,41 @@
     window.addEventListener('load', () => {
       const y = sessionStorage.getItem('att_scroll');
       if (y) window.scrollTo(0, parseInt(y, 10));
+    });
+
+    // --- Debounced auto-save for notes (no page reload) ---
+    const debounce = (fn, ms=400) => {
+      let t; return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), ms); };
+    };
+
+    async function saveNote(aid, note, statusEl){
+      try {
+        if (statusEl) statusEl.textContent = "Saving…";
+        const res = await fetch("{{ url_for('attendance_note') }}", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ athlete_id: String(aid), note: note })
+        });
+        if (!res.ok) throw new Error("HTTP "+res.status);
+        if (statusEl) {
+          statusEl.textContent = "Saved";
+          setTimeout(()=>{ if (statusEl.textContent === "Saved") statusEl.textContent=""; }, 1200);
+        }
+      } catch(e) {
+        if (statusEl) statusEl.textContent = "Error";
+      }
+    }
+
+    const handler = debounce((input) => {
+      const aid = input.dataset.athleteId;
+      const statusEl = input.nextElementSibling && input.nextElementSibling.classList.contains("note-status")
+        ? input.nextElementSibling : null;
+      saveNote(aid, input.value, statusEl);
+    }, 450);
+
+    document.querySelectorAll('input.note-field[data-athlete-id]').forEach(input => {
+      input.addEventListener('input', () => handler(input));  // save after typing pauses
+      input.addEventListener('blur', () => handler(input));   // and on leaving the field
     });
   </script>
 

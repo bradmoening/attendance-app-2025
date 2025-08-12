@@ -333,6 +333,36 @@ def attendance():
         unmarked_count=unmarked_count
     )
 
+from flask import jsonify
+from zoneinfo import ZoneInfo
+import datetime as pydt  # (avoid name clash if you use `import datetime` elsewhere)
+
+@app.route("/attendance/note", methods=["POST"])
+@login_required
+def attendance_note():
+    """AJAX: save today's note for an athlete without changing status."""
+    central = ZoneInfo("America/Chicago")
+    today = pydt.datetime.now(central).date().isoformat()
+
+    # Support JSON or form-encoded
+    data = request.get_json(silent=True) or request.form
+    aid_raw = (data.get("athlete_id") or "").strip()
+    note = (data.get("note") or "").strip()
+
+    try:
+        aid = int(aid_raw)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "bad athlete_id"}), 400
+
+    record = Attendance.query.filter_by(athlete_id=aid, date=today).first()
+    if not record:
+        # If missing, create a Present row (matches your GET auto-create behavior)
+        record = Attendance(athlete_id=aid, date=today, status="Present", notes=None)
+        db.session.add(record)
+
+    record.notes = note or None
+    db.session.commit()
+    return ("", 204)  # No Content
 
 
 @app.route("/history", methods=["GET", "POST"])
