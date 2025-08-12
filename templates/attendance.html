@@ -11,21 +11,10 @@
       background-color: #eef2f5;
     }
 
-    nav {
-      margin-bottom: 20px;
-    }
-
-    h2 {
-      margin-bottom: 10px;
-    }
-
-    form {
-      margin: 0;
-    }
-
-    label {
-      font-weight: bold;
-    }
+    nav { margin-bottom: 20px; }
+    h2 { margin-bottom: 10px; }
+    form { margin: 0; }
+    label { font-weight: bold; }
 
     select, input[type="text"] {
       width: 100%;
@@ -38,15 +27,14 @@
       margin-bottom: 12px;
     }
 
-    ul {
-      padding: 0;
-      margin: 0;
-      list-style-type: none;
-    }
+    ul { padding: 0; margin: 0; list-style-type: none; }
 
+    /* --- Layout tweaks for mobile --- */
     .athlete-row {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;      /* keep in one line on phones */
+      align-items: center;
+      gap: 8px;
       margin-bottom: 10px;
     }
 
@@ -54,56 +42,45 @@
       display: flex;
       flex-direction: row;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
+      width: 100%;
+      flex-wrap: nowrap;        /* prevent wrapping button above input */
     }
 
     .status-btn {
-      flex-shrink: 0;
-      width: 250px;
-      height: 48px;
-      padding: 0 12px;
-      font-size: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;           /* don't grow, don't shrink */
+      min-width: 96px;          /* keep tap target */
+      max-width: 44vw;          /* cap width on small screens */
+      height: 40px;
+      padding: 6px 10px;
+      font-size: 14px;
       border: none;
       border-radius: 6px;
       cursor: pointer;
-      text-align: left;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      text-align: center;
     }
 
-    .present {
-      background-color: #2ecc71;
-      color: white;
-    }
-
-    .absent {
-      background-color: #e74c3c;
-      color: white;
-    }
+    .present { background-color: #2ecc71; color: white; }
+    .absent  { background-color: #e74c3c; color: white; }
 
     input[type="text"].note-field {
-      flex: 1;
-      min-width: 100px;
-      max-width: 150px;
+      flex: 1 1 auto;           /* take remaining space */
+      min-width: 140px;         /* don’t collapse too small */
+      max-width: none;          /* allow full remaining width */
       padding: 6px;
       font-size: 14px;
     }
 
+    /* --- Wider screens: give button a bit more room --- */
     @media (min-width: 600px) {
-      .athlete-row {
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .status-btn {
-        width: 250px;
-      }
-
-      input[type="text"].note-field {
-        max-width: 200px;
-      }
+      .status-btn { max-width: 250px; height: 44px; font-size: 16px; }
+      input[type="text"].note-field { max-width: 300px; }
     }
   </style>
 </head>
@@ -116,27 +93,25 @@
   <hr>
 
   <h2>Attendance {{ date }}</h2>
-<p>Selected team ID: {{ selected_team_id }}</p>
+  <p>Selected team ID: {{ selected_team_id }}</p>
 
   <!-- Team Selection Dropdown -->
- <form method="GET" action="{{ url_for('attendance') }}">
-  <label for="team_id">Filter by Team:</label>
-  <select name="team_id" id="team_id" onchange="this.form.submit()">
-    <option value="">Show All Teams</option>
-    {% for team in teams %}
-      <option value="{{ team.id }}"
-              {% if selected_team_id == team.id %}selected{% endif %}>
-        {{ team.name }}
-      </option>
-    {% endfor %}
-  </select>
-</form>
-
+  <form method="GET" action="{{ url_for('attendance') }}">
+    <label for="team_id">Filter by Team:</label>
+    <select name="team_id" id="team_id" onchange="this.form.submit()">
+      <option value="">Show All Teams</option>
+      {% for team in teams %}
+        <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>
+          {{ team.name }}
+        </option>
+      {% endfor %}
+    </select>
+  </form>
 
   <ul>
     {% for athlete in athletes %}
       <li>
-        <div class="athlete-row">
+        <div class="athlete-row" id="athlete-{{ athlete.id }}">
           <form method="post" class="button-note-wrapper">
             <input type="hidden" name="athlete_id" value="{{ athlete.id }}">
             <input type="hidden" name="team_id" value="{{ selected_team_id or '' }}">
@@ -154,21 +129,20 @@
       </li>
     {% endfor %}
   </ul>
-<script>
-  // remember scroll before any attendance form submits
-  document.addEventListener('submit', e => {
-    if (e.target && e.target.matches('form')) {
-      sessionStorage.setItem('att_scroll', String(window.scrollY));
-    }
-  });
-  // restore after reload
-  window.addEventListener('load', () => {
-    const y = sessionStorage.getItem('att_scroll');
-    if (y) window.scrollTo(0, parseInt(y, 10));
-  });
-</script>
 
-
+  <script>
+    // remember scroll before any attendance form submits
+    document.addEventListener('submit', e => {
+      if (e.target && e.target.matches('form')) {
+        sessionStorage.setItem('att_scroll', String(window.scrollY));
+      }
+    });
+    // restore after reload
+    window.addEventListener('load', () => {
+      const y = sessionStorage.getItem('att_scroll');
+      if (y) window.scrollTo(0, parseInt(y, 10));
+    });
+  </script>
 
 </body>
 </html>
