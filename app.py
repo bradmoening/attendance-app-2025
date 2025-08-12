@@ -31,6 +31,19 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY") or os.urandom(24)
 
 
+from datetime import timedelta
+
+app.config.update(
+    REMEMBER_COOKIE_DURATION=timedelta(days=30),  # stay logged in for 30 days
+    REMEMBER_COOKIE_SECURE=True,                  # only over HTTPS
+    REMEMBER_COOKIE_HTTPONLY=True,                # JS can’t read cookie
+    REMEMBER_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
+
+
 
 
 import os
