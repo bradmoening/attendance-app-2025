@@ -128,7 +128,6 @@
             <button type="submit" name="action" value="toggle"
                     class="status-btn {% if attendance.get(athlete.id) == 'Absent' %}absent{% else %}present{% endif %}">
               {{ athlete.first_name }} {{ athlete.last_name[0] }}:
-              {% if attendance.get(athlete.id) == 'Absent' %}A{% else %}P{% endif %}
             </button>
 
             <!-- Note field (auto-saves via fetch; no reload) -->
