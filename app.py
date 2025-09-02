@@ -11,7 +11,9 @@ from datetime import datetime
 
 
 # SQLAlchemy aggregation helper
-from sqlalchemy import func
+from sqlalchemy import func, and_, case
+from zoneinfo import ZoneInfo
+import datetime as pydt
 
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from flask import current_app
@@ -363,6 +365,104 @@ def attendance_note():
     record.notes = note or None
     db.session.commit()
     return ("", 204)  # No Content
+
+
+@app.route("/attendance_leaders", methods=["GET"])
+@login_required
+def attendance_leaders():
+    """
+    Ranks athletes by number of Present days in an optional date range and/or team.
+    - Default: coach sees their own team; admin sees all unless team chosen.
+    - Shows athletes with 0 present days too.
+    """
+    # Inputs
+    since = (request.args.get("since") or "").strip()   # YYYY-MM-DD
+    until = (request.args.get("until") or "").strip()
+    limit = request.args.get("limit", type=int) or 50
+
+    raw_team = request.args.get("team_id")
+    try:
+        selected_team_id = int(raw_team) if raw_team else None
+    except (TypeError, ValueError):
+        selected_team_id = None
+
+    # Default to coach’s team if not admin and none chosen
+    if selected_team_id is None and getattr(current_user, "username", "") != "admin":
+        selected_team_id = current_user.team_id
+
+    # Build present-count expression (works with LEFT OUTER JOIN)
+    present_count = func.coalesce(
+        func.sum(
+            case((Attendance.status == "Present", 1), else_=0)
+        ),
+        0
+    ).label("present_days")
+
+    # Base query: include all athletes (even with no rows in Attendance)
+    q = (
+        db.session.query(
+            Athlete.id,
+            Athlete.first_name,
+            Athlete.last_name,
+            Team.name.label("team_name"),
+            present_count
+        )
+        .join(Team, Team.id == Athlete.team_id, isouter=True)
+        .outerjoin(
+            Attendance,
+            and_(
+                Attendance.athlete_id == Athlete.id,
+                (Attendance.status.in_(("Present", "Absent")))  # only real attendance rows
+            )
+        )
+    )
+
+    # Filters
+    if selected_team_id:
+        q = q.filter(Athlete.team_id == selected_team_id)
+    if since:
+        q = q.filter(Attendance.date >= since)
+    if until:
+        q = q.filter(Attendance.date <= until)
+
+    # Group & order
+    q = (
+        q.group_by(Athlete.id, Athlete.first_name, Athlete.last_name, Team.name)
+         .order_by(present_count.desc(), Athlete.last_name, Athlete.first_name)
+    )
+
+    leaders = q.limit(limit).all()
+
+    # Also compute how many practice days exist in this range (for context/percent)
+    distinct_days_q = db.session.query(func.count(func.distinct(Attendance.date)))
+    if since:
+        distinct_days_q = distinct_days_q.filter(Attendance.date >= since)
+    if until:
+        distinct_days_q = distinct_days_q.filter(Attendance.date <= until)
+    # If a team is selected, restrict to that team’s athletes’ attendance
+    if selected_team_id:
+        distinct_days_q = (
+            distinct_days_q
+            .join(Athlete, Athlete.id == Attendance.athlete_id)
+            .filter(Athlete.team_id == selected_team_id)
+        )
+    total_days = distinct_days_q.scalar() or 0
+
+    teams = db.session.query(Team.id, Team.name).order_by(Team.name).all()
+
+    return render_template(
+        "leaders.html",
+        leaders=leaders,
+        teams=teams,
+        selected_team_id=selected_team_id,
+        since=since,
+        until=until,
+        total_days=total_days,
+        limit=limit
+    )
+
+
+
 
 
 @app.route("/history", methods=["GET", "POST"])

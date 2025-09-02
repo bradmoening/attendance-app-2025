@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Attendance Leaders</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: sans-serif; margin: 1rem; background: #eef2f5; }
+    nav { margin-bottom: 16px; }
+    h2 { margin: 8px 0 16px; }
+    form.filters { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+    label { font-weight: 600; font-size: 14px; display:block; }
+    input, select { padding:6px 8px; font-size:14px; border:1px solid #ccc; border-radius:4px; }
+    button { padding:8px 12px; border:0; border-radius:6px; background:#2563eb; color:#fff; cursor:pointer; }
+    table { width:100%; border-collapse: collapse; background:#fff; border-radius:8px; overflow:hidden; }
+    th, td { padding:10px; border-bottom:1px solid #e5e7eb; text-align:left; font-size:14px; }
+    th { background:#f3f4f6; font-weight:700; }
+    tr:last-child td { border-bottom:0; }
+    .subtle { color:#6b7280; font-size:12px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="{{ url_for('home') }}">🏠 Main Page</a> |
+    <a href="{{ url_for('attendance') }}">🗒️ Take Attendance</a>
+  </nav>
+
+  <h2>Attendance Leaders</h2>
+
+  <form class="filters" method="get" action="{{ url_for('attendance_leaders') }}">
+    <div>
+      <label for="team_id">Team</label>
+      <select name="team_id" id="team_id" onchange="this.form.submit()">
+        <option value="">All Teams</option>
+        {% for t in teams %}
+          <option value="{{ t.id }}" {% if selected_team_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="since">Since</label>
+      <input id="since" name="since" type="date" value="{{ since }}">
+    </div>
+    <div>
+      <label for="until">Until</label>
+      <input id="until" name="until" type="date" value="{{ until }}">
+    </div>
+    <div>
+      <label for="limit">Show top</label>
+      <input id="limit" name="limit" type="number" min="1" max="200" value="{{ limit }}">
+    </div>
+    <div>
+      <button type="submit">Apply</button>
+    </div>
+  </form>
+
+  {% if total_days %}
+    <p class="subtle">Range has {{ total_days }} tracked practice day{{ '' if total_days==1 else 's' }}.</p>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Athlete</th>
+        <th>Team</th>
+        <th>Present Days</th>
+        <th>% of Days</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if leaders %}
+        {% for a in leaders %}
+          {% set rank = loop.index %}
+          {% set pct = (a.present_days / total_days * 100) if total_days else None %}
+          <tr>
+            <td>{{ rank }}</td>
+            <td>{{ a.first_name }} {{ a.last_name }}</td>
+            <td>{{ a.team_name or '—' }}</td>
+            <td>{{ a.present_days }}</td>
+            <td>
+              {% if pct is not none %}
+                {{ '%.0f'|format(pct) }}%
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="5">No data in this range.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</body>
+</html>
