@@ -934,7 +934,7 @@ def flagged_athletes():
     # ---- Inputs ----
     # threshold: minimum absences to flag (default 5)
     try:
-        min_abs = int(request.values.get("min_absences", 5))
+        min_abs = int(request.values.get("min_absences", 8))
     except (TypeError, ValueError):
         min_abs = 5
 
