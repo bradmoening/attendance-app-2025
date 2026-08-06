@@ -102,7 +102,7 @@ class Coach(UserMixin, db.Model):
 def rename_teams_to_coaches():
     """Rename the first four teams (by ID) to Brad, Chad, Grace, Klatt.
        If fewer than 4 teams exist, create them."""
-    desired = ["Brad ", "Emily", "Chad", "Mollie"]
+    desired = ["Brad", "Emily", "Chad", "Mollie M"]
 
     teams = Team.query.order_by(Team.id).all()
 
