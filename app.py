@@ -1,6 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
+from flask_login import (
+    LoginManager,
+    login_user,
+    login_required,
+    logout_user,
+    current_user,
+    UserMixin,
+)
 from werkzeug.security import generate_password_hash, check_password_hash
 from io import TextIOWrapper
 import csv
@@ -8,7 +15,6 @@ import datetime
 import os
 import pytz
 from datetime import datetime
-
 
 # SQLAlchemy aggregation helper
 from sqlalchemy import func, and_, case
@@ -19,14 +25,9 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from flask import current_app
 
 
-
-
 def get_serializer():
     # uses your existing SECRET_KEY
     return URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
-
-
-
 
 
 app = Flask(__name__)
@@ -37,15 +38,13 @@ from datetime import timedelta
 
 app.config.update(
     REMEMBER_COOKIE_DURATION=timedelta(days=30),  # stay logged in for 30 days
-    REMEMBER_COOKIE_SECURE=True,                  # only over HTTPS
-    REMEMBER_COOKIE_HTTPONLY=True,                # JS can’t read cookie
+    REMEMBER_COOKIE_SECURE=True,  # only over HTTPS
+    REMEMBER_COOKIE_HTTPONLY=True,  # JS can’t read cookie
     REMEMBER_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
 )
-
-
 
 
 import os
@@ -62,27 +61,30 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy()
 db.init_app(app)
 
+
 # Models
 class Athlete(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(100), nullable=False)
-    last_name  = db.Column(db.String(100), nullable=False)
-    grade      = db.Column(db.Integer, nullable=True)     # was False
-    gender     = db.Column(db.String(50), nullable=True)  # was False
-    team_id    = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    last_name = db.Column(db.String(100), nullable=False)
+    grade = db.Column(db.Integer, nullable=True)  # was False
+    gender = db.Column(db.String(50), nullable=True)  # was False
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=True)
 
 
 class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
-    athletes = db.relationship('Athlete', backref='team', lazy=True)
+    athletes = db.relationship("Athlete", backref="team", lazy=True)
+
 
 from sqlalchemy.schema import UniqueConstraint
 
+
 class Attendance(db.Model):
-    __table_args__ = (UniqueConstraint('athlete_id', 'date', name='uq_attendance_day'),)
+    __table_args__ = (UniqueConstraint("athlete_id", "date", name="uq_attendance_day"),)
     id = db.Column(db.Integer, primary_key=True)
-    athlete_id = db.Column(db.Integer, db.ForeignKey('athlete.id'), nullable=False)
+    athlete_id = db.Column(db.Integer, db.ForeignKey("athlete.id"), nullable=False)
     date = db.Column(db.String(10), nullable=False)  # ISO format string is fine
     status = db.Column(db.String(20), nullable=False)
     notes = db.Column(db.String(255))
@@ -94,15 +96,14 @@ class Coach(UserMixin, db.Model):
     name = db.Column(db.String(100), nullable=False)
     username = db.Column(db.String(100), nullable=False, unique=True)
     password = db.Column(db.String(255), nullable=False)
-    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=True)
     email = db.Column(db.String(120), unique=True, nullable=True)
-
 
 
 def rename_teams_to_coaches():
     """Rename the first four teams (by ID) to Brad, Chad, Grace, Klatt.
-       If fewer than 4 teams exist, create them."""
-    desired = ["Brad", "Klatt", "Chad", "Mollie"]
+    If fewer than 4 teams exist, create them."""
+    desired = ["Varsity/JV", "Dev"]
 
     teams = Team.query.order_by(Team.id).all()
 
@@ -121,21 +122,21 @@ def rename_teams_to_coaches():
     print("✅ Team names set to:", ", ".join(desired))
 
 
-
 from sqlalchemy import inspect, text
+
 
 def ensure_athlete_columns():
     insp = inspect(db.engine)
     try:
-        cols = {c['name'] for c in insp.get_columns('athlete')}
+        cols = {c["name"] for c in insp.get_columns("athlete")}
     except Exception as e:
         print("Could not inspect 'athlete' table:", e)
         return
 
     stmts = []
-    if 'grade' not in cols:
+    if "grade" not in cols:
         stmts.append("ALTER TABLE athlete ADD COLUMN IF NOT EXISTS grade INTEGER")
-    if 'gender' not in cols:
+    if "gender" not in cols:
         stmts.append("ALTER TABLE athlete ADD COLUMN IF NOT EXISTS gender VARCHAR(20)")
 
     if not stmts:
@@ -148,7 +149,9 @@ def ensure_athlete_columns():
             conn.execute(text(s))
     print("Athlete columns ensured.")
 
+
 from sqlalchemy import text
+
 
 def ensure_attendance_unique_index():
     # Enforce one row per (athlete_id, date). Safe to run multiple times.
@@ -160,7 +163,9 @@ def ensure_attendance_unique_index():
         conn.execute(stmt)
     print("Attendance unique index ensured.")
 
+
 from sqlalchemy import text
+
 
 def ensure_athlete_unique_index(per_team=True):
     """
@@ -181,12 +186,11 @@ def ensure_athlete_unique_index(per_team=True):
             """))
 
 
-
-
 # Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = "login"
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -201,6 +205,7 @@ def load_user(user_id):
 def home():
     athletes = Athlete.query.order_by(Athlete.last_name).all()
     return render_template("index.html", athletes=athletes)
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -217,11 +222,13 @@ def login():
             error = "Invalid username or password"
     return render_template("login.html", error=error)
 
+
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
     return redirect(url_for("login"))
+
 
 from zoneinfo import ZoneInfo  # make sure this is imported once
 
@@ -243,7 +250,9 @@ def attendance():
     if request.method == "POST":
         athlete_id = request.form.get("athlete_id")
         note = (request.form.get("note") or "").strip()
-        action = (request.form.get("action") or "toggle").strip()  # "toggle" or "save_note"
+        action = (
+            request.form.get("action") or "toggle"
+        ).strip()  # "toggle" or "save_note"
 
         aid = None
         try:
@@ -255,7 +264,9 @@ def attendance():
             record = Attendance.query.filter_by(athlete_id=aid, date=today).first()
             if not record:
                 # should rarely happen because you auto-create on GET, but be safe
-                record = Attendance(athlete_id=aid, date=today, status="Present", notes=None)
+                record = Attendance(
+                    athlete_id=aid, date=today, status="Present", notes=None
+                )
                 db.session.add(record)
 
             if action == "toggle":
@@ -271,9 +282,11 @@ def attendance():
             db.session.commit()
 
         # Keep current team filter and jump back to the same athlete row
-        return redirect(url_for("attendance",
-                                team_id=selected_team_id,
-                                _anchor=f"athlete-{aid or ''}"))
+        return redirect(
+            url_for(
+                "attendance", team_id=selected_team_id, _anchor=f"athlete-{aid or ''}"
+            )
+        )
     # ----------------------------------------------------------------------
 
     # ===== Auto-create Present rows on GET so green = saved in DB =====
@@ -283,33 +296,30 @@ def attendance():
     for athlete in q.all():
         exists = Attendance.query.filter_by(athlete_id=athlete.id, date=today).first()
         if not exists:
-            db.session.add(Attendance(
-                athlete_id=athlete.id,
-                date=today,
-                status="Present",
-                notes=None
-            ))
+            db.session.add(
+                Attendance(
+                    athlete_id=athlete.id, date=today, status="Present", notes=None
+                )
+            )
     db.session.commit()
     # =================================================================
 
     # GET: fetch athletes (filtered if team selected)
     if selected_team_id:
-        athletes = (Athlete.query
-                    .filter_by(team_id=selected_team_id)
-                    .order_by(Athlete.last_name, Athlete.first_name)
-                    .all())
+        athletes = (
+            Athlete.query.filter_by(team_id=selected_team_id)
+            .order_by(Athlete.last_name, Athlete.first_name)
+            .all()
+        )
     else:
-        athletes = (Athlete.query
-                    .order_by(Athlete.last_name, Athlete.first_name)
-                    .all())
+        athletes = Athlete.query.order_by(Athlete.last_name, Athlete.first_name).all()
 
     # Attendance & notes for today (TEAM-FILTER AWARE)
     today_records = (
-        Attendance.query
-        .join(Athlete, Attendance.athlete_id == Athlete.id)
+        Attendance.query.join(Athlete, Attendance.athlete_id == Athlete.id)
         .filter(
             Attendance.date == today,
-            (Athlete.team_id == selected_team_id) if selected_team_id else True
+            (Athlete.team_id == selected_team_id) if selected_team_id else True,
         )
         .all()
     )
@@ -332,12 +342,14 @@ def attendance():
         date=today,
         present_count=present_count,
         absent_count=absent_count,
-        unmarked_count=unmarked_count
+        unmarked_count=unmarked_count,
     )
+
 
 from flask import jsonify
 from zoneinfo import ZoneInfo
 import datetime as pydt  # (avoid name clash if you use `import datetime` elsewhere)
+
 
 @app.route("/attendance/note", methods=["POST"])
 @login_required
@@ -376,7 +388,7 @@ def attendance_leaders():
     - Shows athletes with 0 present days too.
     """
     # Inputs
-    since = (request.args.get("since") or "").strip()   # YYYY-MM-DD
+    since = (request.args.get("since") or "").strip()  # YYYY-MM-DD
     until = (request.args.get("until") or "").strip()
     limit = request.args.get("limit", type=int) or 50
 
@@ -392,10 +404,7 @@ def attendance_leaders():
 
     # Build present-count expression (works with LEFT OUTER JOIN)
     present_count = func.coalesce(
-        func.sum(
-            case((Attendance.status == "Present", 1), else_=0)
-        ),
-        0
+        func.sum(case((Attendance.status == "Present", 1), else_=0)), 0
     ).label("present_days")
 
     # Base query: include all athletes (even with no rows in Attendance)
@@ -405,15 +414,17 @@ def attendance_leaders():
             Athlete.first_name,
             Athlete.last_name,
             Team.name.label("team_name"),
-            present_count
+            present_count,
         )
         .join(Team, Team.id == Athlete.team_id, isouter=True)
         .outerjoin(
             Attendance,
             and_(
                 Attendance.athlete_id == Athlete.id,
-                (Attendance.status.in_(("Present", "Absent")))  # only real attendance rows
-            )
+                (
+                    Attendance.status.in_(("Present", "Absent"))
+                ),  # only real attendance rows
+            ),
         )
     )
 
@@ -426,10 +437,9 @@ def attendance_leaders():
         q = q.filter(Attendance.date <= until)
 
     # Group & order
-    q = (
-        q.group_by(Athlete.id, Athlete.first_name, Athlete.last_name, Team.name)
-         .order_by(present_count.desc(), Athlete.last_name, Athlete.first_name)
-    )
+    q = q.group_by(
+        Athlete.id, Athlete.first_name, Athlete.last_name, Team.name
+    ).order_by(present_count.desc(), Athlete.last_name, Athlete.first_name)
 
     leaders = q.limit(limit).all()
 
@@ -441,11 +451,9 @@ def attendance_leaders():
         distinct_days_q = distinct_days_q.filter(Attendance.date <= until)
     # If a team is selected, restrict to that team’s athletes’ attendance
     if selected_team_id:
-        distinct_days_q = (
-            distinct_days_q
-            .join(Athlete, Athlete.id == Attendance.athlete_id)
-            .filter(Athlete.team_id == selected_team_id)
-        )
+        distinct_days_q = distinct_days_q.join(
+            Athlete, Athlete.id == Attendance.athlete_id
+        ).filter(Athlete.team_id == selected_team_id)
     total_days = distinct_days_q.scalar() or 0
 
     teams = db.session.query(Team.id, Team.name).order_by(Team.name).all()
@@ -458,24 +466,28 @@ def attendance_leaders():
         since=since,
         until=until,
         total_days=total_days,
-        limit=limit
+        limit=limit,
     )
-
-
-
 
 
 @app.route("/history", methods=["GET", "POST"])
 @login_required
 def history():
     # All known dates (or today if none yet)
-    all_dates = [d[0] for d in db.session.query(Attendance.date)
-                 .distinct().order_by(Attendance.date.desc()).all()] or [datetime.datetime.today().isoformat()]
+    all_dates = [
+        d[0]
+        for d in db.session.query(Attendance.date)
+        .distinct()
+        .order_by(Attendance.date.desc())
+        .all()
+    ] or [datetime.datetime.today().isoformat()]
 
     # Pull inputs from POST (form) or GET (link)
-    selected_date = (request.form.get("selected_date")
-                     or request.args.get("selected_date")
-                     or all_dates[0])
+    selected_date = (
+        request.form.get("selected_date")
+        or request.args.get("selected_date")
+        or all_dates[0]
+    )
 
     raw_team = request.form.get("team_id") or request.args.get("team_id")
     try:
@@ -488,17 +500,14 @@ def history():
         selected_team_id = current_user.team_id
 
     # Build query: everyone for the day, with left join to attendance
-    query = (
-        db.session.query(
-            Athlete.first_name,        # [0]
-            Athlete.last_name,         # [1]
-            Attendance.status,         # [2]
-            Attendance.notes           # [3]
-        )
-        .outerjoin(
-            Attendance,
-            (Attendance.athlete_id == Athlete.id) & (Attendance.date == selected_date)
-        )
+    query = db.session.query(
+        Athlete.first_name,  # [0]
+        Athlete.last_name,  # [1]
+        Attendance.status,  # [2]
+        Attendance.notes,  # [3]
+    ).outerjoin(
+        Attendance,
+        (Attendance.athlete_id == Athlete.id) & (Attendance.date == selected_date),
     )
     if selected_team_id:
         query = query.filter(Athlete.team_id == selected_team_id)
@@ -507,8 +516,10 @@ def history():
 
     # Counts for Present / Absent / Unmarked
     present_count = sum(1 for _, _, s, _ in history_data if s == "Present")
-    absent_count  = sum(1 for _, _, s, _ in history_data if s == "Absent")
-    unmarked_count = sum(1 for _, _, s, _ in history_data if s not in ("Present", "Absent"))
+    absent_count = sum(1 for _, _, s, _ in history_data if s == "Absent")
+    unmarked_count = sum(
+        1 for _, _, s, _ in history_data if s not in ("Present", "Absent")
+    )
 
     # IMPORTANT: pass teams as (id, name) tuples to match team[0]/team[1] in your template
     teams = db.session.query(Team.id, Team.name).order_by(Team.name).all()
@@ -524,6 +535,7 @@ def history():
         absent_count=absent_count,
         unmarked_count=unmarked_count,
     )
+
 
 @app.route("/forgot", methods=["GET", "POST"])
 def forgot():
@@ -543,10 +555,11 @@ def forgot():
         # Try email if you wired it; otherwise log to console/Render logs
         try:
             from app import send_email_via_sendgrid  # if you added the helper earlier
+
             ok, err = send_email_via_sendgrid(
                 getattr(user, "email", None),
                 "HP XC Password Reset",
-                f"Click to reset your password: <a href='{reset_url}'>{reset_url}</a>"
+                f"Click to reset your password: <a href='{reset_url}'>{reset_url}</a>",
             )
         except Exception:
             ok, err = (False, "missing_helper")
@@ -555,7 +568,10 @@ def forgot():
             flash("We emailed you a reset link.", "success")
         else:
             print("🔐 Password reset link (fallback):", reset_url)
-            flash("Reset link created. Email not configured—link logged in server.", "success")
+            flash(
+                "Reset link created. Email not configured—link logged in server.",
+                "success",
+            )
 
         return redirect(url_for("login"))
 
@@ -597,7 +613,6 @@ def reset_password_token(token):
     return render_template("reset_password_token.html")
 
 
-
 @app.route("/add_coach", methods=["GET", "POST"])
 @login_required
 def add_coach():
@@ -610,7 +625,12 @@ def add_coach():
         team_id = request.form.get("team_id") or None
         hashed_password = generate_password_hash(password)
         try:
-            new_coach = Coach(name=name, username=username, password=hashed_password, team_id=int(team_id) if team_id else None)
+            new_coach = Coach(
+                name=name,
+                username=username,
+                password=hashed_password,
+                team_id=int(team_id) if team_id else None,
+            )
             db.session.add(new_coach)
             db.session.commit()
             message = "Coach added successfully."
@@ -619,11 +639,13 @@ def add_coach():
             message = f"Error: {str(e)}"
     return render_template("add_coach.html", teams=teams, message=message)
 
+
 import csv
 from io import TextIOWrapper
 
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
+
 
 @app.route("/import_csv", methods=["GET", "POST"])
 @login_required
@@ -640,21 +662,21 @@ def import_csv():
 
             # Team lookups
             all_teams = Team.query.all()
-            teams_by_name = { (t.name or "").strip(): t for t in all_teams }
-            teams_by_id   = { int(t.id): t for t in all_teams }
+            teams_by_name = {(t.name or "").strip(): t for t in all_teams}
+            teams_by_id = {int(t.id): t for t in all_teams}
 
             added = 0
             skipped_missing_names = 0
-            skipped_unknown_team  = 0
-            skipped_infile_dupes  = 0
-            skipped_db_dupes      = 0
+            skipped_unknown_team = 0
+            skipped_infile_dupes = 0
+            skipped_db_dupes = 0
 
             # in-file duplicate guard: per-team uniqueness (first+last+team)
             seen = set()  # keys like ("ava","jones", team_id or None)
 
             for row in reader:
                 fn = (row.get("first_name") or "").strip()
-                ln = (row.get("last_name")  or "").strip()
+                ln = (row.get("last_name") or "").strip()
                 if not fn or not ln:
                     skipped_missing_names += 1
                     continue
@@ -694,8 +716,8 @@ def import_csv():
                     db.session.query(Athlete.id)
                     .filter(
                         func.lower(Athlete.first_name) == fn.lower(),
-                        func.lower(Athlete.last_name)  == ln.lower(),
-                        Athlete.team_id == team_id
+                        func.lower(Athlete.last_name) == ln.lower(),
+                        Athlete.team_id == team_id,
                     )
                     .first()
                 )
@@ -705,13 +727,15 @@ def import_csv():
 
                 # Add and flush so we can catch a unique-index violation early
                 try:
-                    db.session.add(Athlete(
-                        first_name=fn,
-                        last_name=ln,
-                        grade=grade,
-                        gender=gender,
-                        team_id=team_id
-                    ))
+                    db.session.add(
+                        Athlete(
+                            first_name=fn,
+                            last_name=ln,
+                            grade=grade,
+                            gender=gender,
+                            team_id=team_id,
+                        )
+                    )
                     db.session.flush()
                     added += 1
                 except IntegrityError:
@@ -746,6 +770,7 @@ import csv, io, zipfile, datetime
 from flask import Response, abort
 from functools import wraps
 
+
 # If you don't already have this:
 def admin_required(f):
     @wraps(f)
@@ -753,7 +778,9 @@ def admin_required(f):
         if getattr(current_user, "username", "") != "admin":
             abort(403)
         return f(*a, **kw)
+
     return w
+
 
 def _csv_response(rows, headers, filename_base):
     si = io.StringIO()
@@ -764,8 +791,11 @@ def _csv_response(rows, headers, filename_base):
     out = si.getvalue()
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     resp = Response(out, mimetype="text/csv; charset=utf-8")
-    resp.headers["Content-Disposition"] = f"attachment; filename={filename_base}-{ts}.csv"
+    resp.headers["Content-Disposition"] = (
+        f"attachment; filename={filename_base}-{ts}.csv"
+    )
     return resp
+
 
 @app.route("/admin/export", methods=["GET"])
 @login_required
@@ -791,7 +821,8 @@ def export_data():
 
     # ----- ATHLETES -----
     if table == "athletes":
-        q = (db.session.query(
+        q = (
+            db.session.query(
                 Athlete.id,
                 Athlete.first_name,
                 Athlete.last_name,
@@ -801,19 +832,29 @@ def export_data():
                 Team.name.label("team_name"),
             )
             .join(Team, Team.id == Athlete.team_id, isouter=True)
-            .order_by(Athlete.last_name, Athlete.first_name))
+            .order_by(Athlete.last_name, Athlete.first_name)
+        )
         if team_id:
             q = q.filter(Athlete.team_id == team_id)
         rows = q.all()
         return _csv_response(
             rows,
-            ["id","first_name","last_name","grade","gender","team_id","team_name"],
-            "athletes"
+            [
+                "id",
+                "first_name",
+                "last_name",
+                "grade",
+                "gender",
+                "team_id",
+                "team_name",
+            ],
+            "athletes",
         )
 
     # ----- ATTENDANCE -----
     if table == "attendance":
-        q = (db.session.query(
+        q = (
+            db.session.query(
                 Attendance.id,
                 Attendance.athlete_id,
                 Athlete.first_name,
@@ -837,24 +878,39 @@ def export_data():
         rows = q.all()
         return _csv_response(
             rows,
-            ["id","athlete_id","first_name","last_name","team_id","team_name","date","status","notes"],
-            "attendance"
+            [
+                "id",
+                "athlete_id",
+                "first_name",
+                "last_name",
+                "team_id",
+                "team_name",
+                "date",
+                "status",
+                "notes",
+            ],
+            "attendance",
         )
 
     # ----- COACHES (no password hashes) -----
     if table == "coaches":
-        q = (db.session.query(
-                Coach.id, Coach.name, Coach.username, Coach.email, Coach.team_id, Team.name.label("team_name")
+        q = (
+            db.session.query(
+                Coach.id,
+                Coach.name,
+                Coach.username,
+                Coach.email,
+                Coach.team_id,
+                Team.name.label("team_name"),
             )
             .join(Team, Team.id == Coach.team_id, isouter=True)
-            .order_by(Coach.name))
+            .order_by(Coach.name)
+        )
         if team_id:
             q = q.filter(Coach.team_id == team_id)
         rows = q.all()
         return _csv_response(
-            rows,
-            ["id","name","username","email","team_id","team_name"],
-            "coaches"
+            rows, ["id", "name", "username", "email", "team_id", "team_name"], "coaches"
         )
 
     # ----- ALL: build a ZIP with 4 CSVs -----
@@ -863,50 +919,105 @@ def export_data():
         with zipfile.ZipFile(mem, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             # teams
             teams = db.session.query(Team.id, Team.name).order_by(Team.id).all()
-            _add_csv_to_zip(zf, "teams", ["id","name"], teams, ts)
+            _add_csv_to_zip(zf, "teams", ["id", "name"], teams, ts)
 
             # athletes
-            aq = (db.session.query(
-                    Athlete.id, Athlete.first_name, Athlete.last_name,
-                    Athlete.grade, Athlete.gender, Athlete.team_id,
-                    Team.name.label("team_name"))
-                  .join(Team, Team.id == Athlete.team_id, isouter=True)
-                  .order_by(Athlete.last_name, Athlete.first_name))
+            aq = (
+                db.session.query(
+                    Athlete.id,
+                    Athlete.first_name,
+                    Athlete.last_name,
+                    Athlete.grade,
+                    Athlete.gender,
+                    Athlete.team_id,
+                    Team.name.label("team_name"),
+                )
+                .join(Team, Team.id == Athlete.team_id, isouter=True)
+                .order_by(Athlete.last_name, Athlete.first_name)
+            )
             if team_id:
                 aq = aq.filter(Athlete.team_id == team_id)
-            _add_csv_to_zip(zf, "athletes",
-                ["id","first_name","last_name","grade","gender","team_id","team_name"],
-                aq.all(), ts)
+            _add_csv_to_zip(
+                zf,
+                "athletes",
+                [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "grade",
+                    "gender",
+                    "team_id",
+                    "team_name",
+                ],
+                aq.all(),
+                ts,
+            )
 
             # attendance
-            atq = (db.session.query(
-                    Attendance.id, Attendance.athlete_id,
-                    Athlete.first_name, Athlete.last_name,
-                    Athlete.team_id, Team.name.label("team_name"),
-                    Attendance.date, Attendance.status, Attendance.notes)
-                   .join(Athlete, Athlete.id == Attendance.athlete_id)
-                   .join(Team, Team.id == Athlete.team_id, isouter=True))
+            atq = (
+                db.session.query(
+                    Attendance.id,
+                    Attendance.athlete_id,
+                    Athlete.first_name,
+                    Athlete.last_name,
+                    Athlete.team_id,
+                    Team.name.label("team_name"),
+                    Attendance.date,
+                    Attendance.status,
+                    Attendance.notes,
+                )
+                .join(Athlete, Athlete.id == Attendance.athlete_id)
+                .join(Team, Team.id == Athlete.team_id, isouter=True)
+            )
             if team_id:
                 atq = atq.filter(Athlete.team_id == team_id)
             if since:
                 atq = atq.filter(Attendance.date >= since)
             if until:
                 atq = atq.filter(Attendance.date <= until)
-            atq = atq.order_by(Attendance.date.desc(), Athlete.last_name, Athlete.first_name)
-            _add_csv_to_zip(zf, "attendance",
-                ["id","athlete_id","first_name","last_name","team_id","team_name","date","status","notes"],
-                atq.all(), ts)
+            atq = atq.order_by(
+                Attendance.date.desc(), Athlete.last_name, Athlete.first_name
+            )
+            _add_csv_to_zip(
+                zf,
+                "attendance",
+                [
+                    "id",
+                    "athlete_id",
+                    "first_name",
+                    "last_name",
+                    "team_id",
+                    "team_name",
+                    "date",
+                    "status",
+                    "notes",
+                ],
+                atq.all(),
+                ts,
+            )
 
             # coaches
-            cq = (db.session.query(
-                    Coach.id, Coach.name, Coach.username, Coach.email, Coach.team_id, Team.name.label("team_name"))
-                  .join(Team, Team.id == Coach.team_id, isouter=True)
-                  .order_by(Coach.name))
+            cq = (
+                db.session.query(
+                    Coach.id,
+                    Coach.name,
+                    Coach.username,
+                    Coach.email,
+                    Coach.team_id,
+                    Team.name.label("team_name"),
+                )
+                .join(Team, Team.id == Coach.team_id, isouter=True)
+                .order_by(Coach.name)
+            )
             if team_id:
                 cq = cq.filter(Coach.team_id == team_id)
-            _add_csv_to_zip(zf, "coaches",
-                ["id","name","username","email","team_id","team_name"],
-                cq.all(), ts)
+            _add_csv_to_zip(
+                zf,
+                "coaches",
+                ["id", "name", "username", "email", "team_id", "team_name"],
+                cq.all(),
+                ts,
+            )
 
         mem.seek(0)
         resp = Response(mem.read(), mimetype="application/zip")
@@ -914,6 +1025,7 @@ def export_data():
         return resp
 
     abort(400)
+
 
 def _add_csv_to_zip(zf, base, headers, rows, ts):
     si = io.StringIO()
@@ -924,9 +1036,9 @@ def _add_csv_to_zip(zf, base, headers, rows, ts):
     zf.writestr(f"{base}-{ts}.csv", si.getvalue())
 
 
-
 from datetime import date
 from sqlalchemy import func, and_
+
 
 @app.route("/flagged_athletes", methods=["GET", "POST"])
 @login_required
@@ -1007,8 +1119,10 @@ def flagged_athletes():
         until=until,
     )
 
+
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
+
 
 @app.route("/manage_roster", methods=["GET", "POST"])
 @login_required
@@ -1018,10 +1132,10 @@ def manage_roster():
 
         if action == "add":
             first_name = (request.form.get("first_name") or "").strip()
-            last_name  = (request.form.get("last_name")  or "").strip()
-            grade      = request.form.get("grade")
-            gender     = request.form.get("gender")
-            team_id    = request.form.get("team_id") or None
+            last_name = (request.form.get("last_name") or "").strip()
+            grade = request.form.get("grade")
+            gender = request.form.get("gender")
+            team_id = request.form.get("team_id") or None
 
             if not first_name or not last_name:
                 flash("First and last name are required.", "error")
@@ -1035,23 +1149,28 @@ def manage_roster():
                 db.session.query(Athlete.id)
                 .filter(
                     func.lower(Athlete.first_name) == first_name.lower(),
-                    func.lower(Athlete.last_name)  == last_name.lower(),
-                    Athlete.team_id == team_id_int
+                    func.lower(Athlete.last_name) == last_name.lower(),
+                    Athlete.team_id == team_id_int,
                 )
                 .first()
             )
             if exists:
-                flash(f"Duplicate blocked: {first_name} {last_name} already on this team.", "error")
+                flash(
+                    f"Duplicate blocked: {first_name} {last_name} already on this team.",
+                    "error",
+                )
                 return redirect(url_for("manage_roster"))
 
             try:
-                db.session.add(Athlete(
-                    first_name=first_name,
-                    last_name=last_name,
-                    grade=grade_int,
-                    gender=gender,
-                    team_id=team_id_int
-                ))
+                db.session.add(
+                    Athlete(
+                        first_name=first_name,
+                        last_name=last_name,
+                        grade=grade_int,
+                        gender=gender,
+                        team_id=team_id_int,
+                    )
+                )
                 db.session.commit()
                 flash(f"Added athlete {first_name} {last_name}.", "success")
             except IntegrityError:
@@ -1068,10 +1187,10 @@ def manage_roster():
                 return redirect(url_for("manage_roster"))
 
             first_name = (request.form.get("first_name") or "").strip()
-            last_name  = (request.form.get("last_name")  or "").strip()
-            grade      = request.form.get("grade")
-            gender     = request.form.get("gender")
-            team_id    = request.form.get("team_id") or None
+            last_name = (request.form.get("last_name") or "").strip()
+            grade = request.form.get("grade")
+            gender = request.form.get("gender")
+            team_id = request.form.get("team_id") or None
 
             if not first_name or not last_name:
                 flash("First and last name are required.", "error")
@@ -1083,29 +1202,32 @@ def manage_roster():
                     flash("Athlete not found.", "error")
                     return redirect(url_for("manage_roster"))
 
-                team_id_int  = int(team_id) if team_id else None
-                grade_int    = int(grade) if grade else None
+                team_id_int = int(team_id) if team_id else None
+                grade_int = int(grade) if grade else None
 
                 # dedupe check, excluding self
                 exists = (
                     db.session.query(Athlete.id)
                     .filter(
                         func.lower(Athlete.first_name) == first_name.lower(),
-                        func.lower(Athlete.last_name)  == last_name.lower(),
+                        func.lower(Athlete.last_name) == last_name.lower(),
                         Athlete.team_id == team_id_int,
-                        Athlete.id != athlete.id
+                        Athlete.id != athlete.id,
                     )
                     .first()
                 )
                 if exists:
-                    flash(f"Edit blocked: {first_name} {last_name} already on this team.", "error")
+                    flash(
+                        f"Edit blocked: {first_name} {last_name} already on this team.",
+                        "error",
+                    )
                     return redirect(url_for("manage_roster"))
 
                 athlete.first_name = first_name
-                athlete.last_name  = last_name
-                athlete.grade      = grade_int
-                athlete.gender     = gender
-                athlete.team_id    = team_id_int
+                athlete.last_name = last_name
+                athlete.grade = grade_int
+                athlete.gender = gender
+                athlete.team_id = team_id_int
 
                 db.session.commit()
                 flash("Athlete updated.", "success")
@@ -1133,13 +1255,13 @@ def manage_roster():
     # GET
     athletes = (
         db.session.query(
-            Athlete.id,        # 0
-            Athlete.first_name,# 1
-            Athlete.last_name, # 2
-            Athlete.grade,     # 3
-            Athlete.gender,    # 4
-            Athlete.team_id,   # 5
-            Team.name.label("team_name"), # 6
+            Athlete.id,  # 0
+            Athlete.first_name,  # 1
+            Athlete.last_name,  # 2
+            Athlete.grade,  # 3
+            Athlete.gender,  # 4
+            Athlete.team_id,  # 5
+            Team.name.label("team_name"),  # 6
         )
         .join(Team, Team.id == Athlete.team_id, isouter=True)
         .order_by(Athlete.last_name, Athlete.first_name)
@@ -1175,7 +1297,7 @@ def manage_absences():
         sid = None
 
     # Handle deletion (only delete Absent rows)
-   # Handle deletion -> actually mark Present instead of deleting
+    # Handle deletion -> actually mark Present instead of deleting
     if delete_id:
         try:
             rec = Attendance.query.get(delete_id)
@@ -1189,7 +1311,6 @@ def manage_absences():
         except Exception:
             db.session.rollback()
 
-
     # Handle add (mark a date as Absent, upserting if a Present exists)
     if action == "add_absence" and sid and add_date:
         try:
@@ -1199,12 +1320,14 @@ def manage_absences():
                 if add_note:
                     rec.notes = add_note
             else:
-                db.session.add(Attendance(
-                    athlete_id=sid,
-                    date=add_date,
-                    status="Absent",
-                    notes=add_note or None
-                ))
+                db.session.add(
+                    Attendance(
+                        athlete_id=sid,
+                        date=add_date,
+                        status="Absent",
+                        notes=add_note or None,
+                    )
+                )
             db.session.commit()
         except Exception:
             db.session.rollback()
@@ -1227,14 +1350,16 @@ def manage_absences():
     )
 
 
-
 from sqlalchemy import and_
+
 
 @app.route("/athlete_report", methods=["GET", "POST"])
 @login_required
 def athlete_report():
     # Pull selection from either POST (dropdown auto-submit) or GET (links)
-    selected_id = (request.form.get("athlete_id") or request.args.get("athlete_id") or "").strip() or None
+    selected_id = (
+        request.form.get("athlete_id") or request.args.get("athlete_id") or ""
+    ).strip() or None
     try:
         selected_id = int(selected_id) if selected_id else None
     except (TypeError, ValueError):
@@ -1248,19 +1373,18 @@ def athlete_report():
     if getattr(current_user, "username", "") == "admin":
         athletes_q = db.session.query(Athlete.id, Athlete.first_name, Athlete.last_name)
     else:
-        athletes_q = db.session.query(Athlete.id, Athlete.first_name, Athlete.last_name)\
-                               .filter(Athlete.team_id == current_user.team_id)
+        athletes_q = db.session.query(
+            Athlete.id, Athlete.first_name, Athlete.last_name
+        ).filter(Athlete.team_id == current_user.team_id)
 
     athletes = athletes_q.order_by(Athlete.last_name, Athlete.first_name).all()
 
     # Build absences list for selected athlete
     absences = []
     if selected_id:
-        q = db.session.query(Attendance.date, Attendance.notes)\
-            .filter(
-                Attendance.athlete_id == selected_id,
-                Attendance.status == "Absent"
-            )
+        q = db.session.query(Attendance.date, Attendance.notes).filter(
+            Attendance.athlete_id == selected_id, Attendance.status == "Absent"
+        )
         if since:
             q = q.filter(Attendance.date >= since)
         if until:
@@ -1300,26 +1424,16 @@ def reset_password():
                 db.session.commit()
                 message = "Password reset successfully."
     # Load list of coaches for the dropdown
-    coaches = (
-        db.session.query(Coach.id, Coach.name)
-        .order_by(Coach.name)
-        .all()
-    )
+    coaches = db.session.query(Coach.id, Coach.name).order_by(Coach.name).all()
     return render_template("reset_password.html", coaches=coaches, message=message)
-
-
-
-
-
 
 
 def seed_default_coach():
     from werkzeug.security import generate_password_hash
+
     if not Coach.query.first():
         coach = Coach(
-            name="Admin",
-            username="admin",
-            password=generate_password_hash("adminpass")
+            name="Admin", username="admin", password=generate_password_hash("adminpass")
         )
         db.session.add(coach)
         db.session.commit()
@@ -1334,19 +1448,17 @@ def seed_teams():
         print("✅ Teams seeded!")
 
 
-
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
         ensure_athlete_columns()
         ensure_attendance_unique_index()
-        ensure_athlete_unique_index(per_team=True)   # <-- keep this
+        ensure_athlete_unique_index(per_team=True)  # <-- keep this
         print("✅ Tables created")
         seed_default_coach()
         seed_teams()
         if os.getenv("RENAME_TEAMS_ON_BOOT") == "1":
             rename_teams_to_coaches()
-
 
     app.run(debug=True)
 else:
@@ -1355,17 +1467,12 @@ else:
             db.create_all()
             ensure_athlete_columns()
             ensure_attendance_unique_index()
-            ensure_athlete_unique_index(per_team=True)   # <-- add this here too
+            ensure_athlete_unique_index(per_team=True)  # <-- add this here too
             print("✅ Tables created")
             seed_default_coach()
             seed_teams()
             if os.getenv("RENAME_TEAMS_ON_BOOT") == "1":
                 rename_teams_to_coaches()
 
-
         except Exception as e:
             print(f"❌ Error during db.create_all(): {e}")
-
-
-
-
