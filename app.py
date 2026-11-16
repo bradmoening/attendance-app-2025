@@ -101,26 +101,23 @@ class Coach(UserMixin, db.Model):
 
 
 def rename_teams_to_coaches():
-    """Set teams to Varsity/JV and Dev, removing any extra teams."""
-    desired = ["Varsity/JV", "Dev"]
+    """Set teams to Varsity, JV, A Squad, B Squad."""
+    desired = ["Varsity", "JV", "A Squad", "B Squad"]
 
     teams = Team.query.order_by(Team.id).all()
 
-    # Create up to len(desired) if missing
     while len(teams) < len(desired):
         t = Team(name=f"Team{len(teams)+1}")
         db.session.add(t)
         db.session.flush()
         teams.append(t)
 
-    # Rename the desired teams
     for i, name in enumerate(desired):
         teams[i].name = name
 
-    # Remove any leftover teams beyond the desired list
+    # Clean up any leftover teams beyond the 4 desired ones
     extra_teams = teams[len(desired):]
     for extra in extra_teams:
-        # Unlink any coaches assigned to the old team first
         Coach.query.filter_by(team_id=extra.id).update({"team_id": None})
         db.session.delete(extra)
 
